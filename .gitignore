@@ -1,0 +1,5 @@
+# Ignore local API keys and generated files
+api_key.py
+__pycache__/
+*.pyc
+data/
