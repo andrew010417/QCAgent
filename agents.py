@@ -1,7 +1,13 @@
 from __future__ import annotations
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
+
+
+@contextmanager
+def trace(name: str):
+    yield
 
 
 class Reasoning(BaseModel):
