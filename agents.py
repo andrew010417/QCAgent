@@ -136,17 +136,24 @@ def build_qc_summary(agent_name: str, user_text: str) -> str:
 
 
 def build_report_summary(conversation: list[Dict[str, Any]]) -> str:
-    qc_texts = []
+    qc_text = None
     for message in conversation:
-        if message.get("role") == "assistant":
-            contents = message.get("content", [])
-            if contents and isinstance(contents, list) and isinstance(contents[0], dict):
-                qc_texts.append(contents[0].get("text", ""))
-    summary = "\n".join(qc_texts[-2:]) if qc_texts else "QC 결과를 생성할 수 없습니다."
+        if message.get("role") != "assistant":
+            continue
+        contents = message.get("content", [])
+        if not contents or not isinstance(contents, list) or not isinstance(contents[0], dict):
+            continue
+        text = contents[0].get("text", "")
+        if "QC Evaluation" in text:
+            qc_text = text
+
+    if not qc_text:
+        qc_text = "QC 결과를 생성할 수 없습니다."
+
     return (
         "최종 QC 종합 보고서\n"
         "------------------------------\n"
-        f"{summary}\n"
+        f"{qc_text}\n"
         "결론: 이 데이터는 현재 평가 기준에서 분석 진행 가능 여부를 검토해야 합니다.\n"
         "권고: 필요한 경우 추가 QC를 수행하고, 경고 항목이 있으면 재처리를 고려하세요."
     )
