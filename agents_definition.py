@@ -377,7 +377,7 @@ QC_AGENT_MAP = {
     "Unknown": atac_seq_qc_agent,
 }
 
-REPORT_CATEGORIES = {"RNA-seq", "WGS", "Methylation"}
+REPORT_CATEGORIES = set(QC_AGENT_MAP.keys())
 
 
 def get_qc_agent(category: str) -> Agent:
