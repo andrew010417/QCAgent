@@ -1,7 +1,7 @@
 from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from pydantic import BaseModel
 import asyncio
 import json
@@ -52,6 +52,7 @@ class Agent:
         output_type: Optional[type[BaseModel]] = None,
         model_settings: Optional[ModelSettings] = None,
         tools: Optional[List[str]] = None,
+        fallback_builder: Optional[Callable[["Agent", str, List[Dict[str, Any]]], BaseModel]] = None,
     ):
         self.name = name
         self.instructions = instructions
@@ -59,6 +60,7 @@ class Agent:
         self.output_type = output_type
         self.model_settings = model_settings
         self.tools = tools or []
+        self.fallback_builder = fallback_builder
 
     def __repr__(self) -> str:
         return f"Agent(name={self.name}, model={self.model})"
@@ -361,32 +363,20 @@ class Runner:
             openai_text = await __import__("asyncio").to_thread(_openai_request, agent, input)
 
         if openai_text is not None:
-            if agent.name == "Classify" and agent.output_type:
+            if agent.output_type:
                 try:
                     parsed = json.loads(openai_text)
                     final_output = agent.output_type(**parsed)
                 except Exception:
-                    category = classify_category(user_text)
-                    final_output = agent.output_type(category=category)
-            elif agent.name == "Data Classifer":
-                final_output = GenericOutput(text=openai_text)
-            elif agent.name.endswith("QC Agent"):
-                final_output = GenericOutput(text=openai_text)
-            elif agent.name == "Report Agent":
-                final_output = GenericOutput(text=openai_text)
+                    if agent.fallback_builder:
+                        final_output = agent.fallback_builder(agent, user_text, input)
+                    else:
+                        raise
             else:
                 final_output = GenericOutput(text=openai_text)
         else:
-            if agent.name == "Classify":
-                category = classify_category(user_text)
-                final_output = agent.output_type(category=category) if agent.output_type else GenericOutput(text=category)
-            elif agent.name == "Data Classifer":
-                category = classify_category(user_text)
-                final_output = GenericOutput(text=f"Data classifier routed to {category} QC agent.")
-            elif agent.name.endswith("QC Agent"):
-                final_output = GenericOutput(text=build_qc_summary(agent.name, user_text))
-            elif agent.name == "Report Agent":
-                final_output = GenericOutput(text=build_report_summary(input))
+            if agent.fallback_builder:
+                final_output = agent.fallback_builder(agent, user_text, input)
             else:
                 final_output = GenericOutput(text=f"Agent {agent.name} response for given input.")
 

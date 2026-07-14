@@ -1,5 +1,13 @@
 from pydantic import BaseModel
-from agents import Agent, ModelSettings, Reasoning
+from agents import (
+    Agent,
+    GenericOutput,
+    ModelSettings,
+    Reasoning,
+    build_qc_summary,
+    build_report_summary,
+    classify_category,
+)
 
 
 class ClassifySchema(BaseModel):
@@ -8,6 +16,23 @@ class ClassifySchema(BaseModel):
 
 class WorkflowInput(BaseModel):
     input_as_text: str
+
+
+def _classify_fallback(agent: Agent, user_text: str, input: list) -> "ClassifySchema":
+    return ClassifySchema(category=classify_category(user_text))
+
+
+def _data_classifier_fallback(agent: Agent, user_text: str, input: list) -> GenericOutput:
+    category = classify_category(user_text)
+    return GenericOutput(text=f"Data classifier routed to {category} QC agent.")
+
+
+def _qc_agent_fallback(agent: Agent, user_text: str, input: list) -> GenericOutput:
+    return GenericOutput(text=build_qc_summary(agent.name, user_text))
+
+
+def _report_agent_fallback(agent: Agent, user_text: str, input: list) -> GenericOutput:
+    return GenericOutput(text=build_report_summary(input))
 
 
 classify = Agent(
@@ -46,7 +71,8 @@ Return a single line of JSON, and nothing else:
     output_type=ClassifySchema,
     model_settings=ModelSettings(
         temperature=0
-    )
+    ),
+    fallback_builder=_classify_fallback,
 )
 
 
@@ -75,7 +101,8 @@ Output ONLY one exact word from the list [RNA-seq, WGS, Methylation, HiFi, ONT, 
         top_p=1,
         max_tokens=2048,
         store=True
-    )
+    ),
+    fallback_builder=_data_classifier_fallback,
 )
 
 
@@ -105,7 +132,8 @@ Recommended QC tools:
             effort="low",
             summary="auto"
         )
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -134,7 +162,8 @@ Recommended QC tools:
         top_p=1,
         max_tokens=2048,
         store=True
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -162,7 +191,8 @@ Recommended QC tools:
         top_p=1,
         max_tokens=2048,
         store=True
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -184,7 +214,8 @@ Rules:
         top_p=1,
         max_tokens=10000,
         store=True
-    )
+    ),
+    fallback_builder=_report_agent_fallback,
 )
 
 
@@ -212,7 +243,8 @@ Recommended QC tools:
         top_p=1,
         max_tokens=2048,
         store=True
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -241,7 +273,8 @@ Recommended QC tools:
             effort="low",
             summary="auto"
         )
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -271,7 +304,8 @@ Recommended QC tools:
             effort="low",
             summary="auto"
         )
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -300,7 +334,8 @@ Recommended QC tools:
             effort="low",
             summary="auto"
         )
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -330,7 +365,8 @@ Recommended QC tools:
             effort="low",
             summary="auto"
         )
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -360,7 +396,8 @@ Recommended QC tools:
             effort="low",
             summary="auto"
         )
-    )
+    ),
+    fallback_builder=_qc_agent_fallback,
 )
 
 
@@ -377,11 +414,28 @@ QC_AGENT_MAP = {
     "Unknown": atac_seq_qc_agent,
 }
 
+TOOL_MAP = {
+    "RNA-seq": ["FastQC", "STAR", "RSeQC"],
+    "WGS": ["BUSCO", "Merqury", "NanoStat"],
+    "Methylation": ["ChAMP", "minfi"],
+    "HiFi": ["NanoStat", "cramino"],
+    "ONT": ["NanoPlot", "NanoStat"],
+    "Illumina": ["FastQC", "fastp", "MultiQC"],
+    "Hi-C": ["pairtools", "HiCExplorer"],
+    "Single-cell": ["Seurat", "scater", "DoubletFinder"],
+    "ATAC-seq": ["FastQC", "ATACseqQC", "deepTools"],
+    "Unknown": ["FastQC", "NanoStat"],
+}
+
 REPORT_CATEGORIES = set(QC_AGENT_MAP.keys())
 
 
 def get_qc_agent(category: str) -> Agent:
     return QC_AGENT_MAP.get(category, atac_seq_qc_agent)
+
+
+def get_recommended_tools(category: str) -> list[str]:
+    return TOOL_MAP.get(category, TOOL_MAP["Unknown"])
 
 
 def should_run_report(category: str) -> bool:
