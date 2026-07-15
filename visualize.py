@@ -84,6 +84,8 @@ def _draw_metric_panel(ax, metric: dict) -> None:
     standard_min = metric.get("standard_min")
     standard_max = metric.get("standard_max")
     standard_text = metric.get("standard_text", "") or ""
+    standard_source = metric.get("standard_source", "") or ""
+    is_verified_source = bool(metric.get("is_verified_source"))
 
     color = STATUS_COLORS.get(status, DEFAULT_STATUS_COLOR)
     user_value = _extract_numeric(user_value_text)
@@ -148,6 +150,20 @@ def _draw_metric_panel(ax, metric: dict) -> None:
             0.5, -0.20, wrapped, transform=ax.transAxes,
             ha="center", va="top", fontsize=7.5, color=TEXT_MUTED, linespacing=1.4,
         )
+    if standard_source:
+        if is_verified_source:
+            source_label = f"출처: {standard_source}"
+            source_color = TEXT_MUTED
+            source_weight = "normal"
+        else:
+            source_label = f"(추정치) {standard_source}"
+            source_color = STATUS_COLORS["WARNING"]
+            source_weight = "bold"
+        wrapped_source = "\n".join(textwrap.wrap(source_label, width=34, max_lines=2, placeholder="…"))
+        ax.text(
+            0.5, -0.34, wrapped_source, transform=ax.transAxes,
+            ha="center", va="top", fontsize=7, color=source_color, fontweight=source_weight, linespacing=1.3,
+        )
 
 
 def save_qc_chart(metrics: list[Any], output_path: str | Path) -> Path:
@@ -156,7 +172,7 @@ def save_qc_chart(metrics: list[Any], output_path: str | Path) -> Path:
     Args:
         metrics: list of QCMetricResult (or dict-equivalents) with fields
             metric, user_value, standard_text, standard_min, standard_max,
-            status, recommendation.
+            standard_source, is_verified_source, status, recommendation.
         output_path: destination PNG path; parent directories are created.
 
     Returns:
@@ -200,7 +216,7 @@ def save_qc_chart(metrics: list[Any], output_path: str | Path) -> Path:
     # Generous bottom margin per subplot (caption block) and hspace between
     # rows so one panel's caption never runs into the row below it.
     fig.tight_layout(rect=(0, 0.06, 1, 0.96))
-    fig.subplots_adjust(hspace=0.9, wspace=0.35)
+    fig.subplots_adjust(hspace=1.15, wspace=0.35)
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

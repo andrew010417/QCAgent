@@ -266,7 +266,10 @@ def _ncbi_pubmed_summary(pubmed_ids: list[str]) -> str:
                     title = item.get("title", "")
                     pubdate = item.get("pubdate", "")
                     source = item.get("source", "")
-                    lines.append(f"- [{pid}] {title} ({source}, {pubdate})")
+                    authors = item.get("authors", [])
+                    first_author = authors[0].get("name", "") if authors else ""
+                    author_label = f"{first_author} et al." if len(authors) > 1 else first_author
+                    lines.append(f"- [PMID:{pid}] {author_label} ({pubdate}). {title} {source}.".replace("  ", " "))
             return "\n".join(lines)
     except Exception as exc:
         print(f"NCBI summary failed: {exc}")
@@ -288,16 +291,36 @@ def _build_openai_messages(agent: Agent, input: list[Dict[str, Any]]) -> list[Di
     return messages
 
 
-def _openai_request(agent: Agent, input: list[Dict[str, Any]]) -> str | None:
+# A plain "{category} QC thresholds" query returns zero NCBI esearch hits for these
+# categories (verified empirically) — PubMed doesn't index "HiFi"/"Hi-C"/"ATAC-seq" as
+# bare terms the way it does "RNA-seq"/"WGS"/"ONT". Without this override, every metric
+# in these categories is permanently stuck at is_verified_source=False regardless of
+# whether relevant literature actually exists.
+_PUBMED_QUERY_OVERRIDES = {
+    "HiFi": "PacBio HiFi sequencing quality control",
+    "Hi-C": "Hi-C chromosome conformation capture quality control",
+    "ATAC-seq": "ATAC-seq chromatin accessibility quality control",
+}
+
+
+def _pubmed_query_term(category: str) -> str:
+    return _PUBMED_QUERY_OVERRIDES.get(category, f"{category} QC thresholds")
+
+
+def _openai_request(agent: Agent, input: list[Dict[str, Any]], category: str | None = None) -> str | None:
     api_key = _openai_api_key()
     if not api_key:
         return None
 
     pubmed_query = None
     if agent.name.endswith("QC Agent"):
-        pubmed_query = f"{agent.name.replace(' QC Agent', '')} QC thresholds"
+        pubmed_query = _pubmed_query_term(agent.name.replace(" QC Agent", ""))
     elif agent.name == "Report Agent":
-        pubmed_query = "bioinformatics QC best practice"
+        # Reuse the same category-specific query the specialist QC agent used so the
+        # Report Agent's [NCBI PubMed reference samples] note can actually cover the
+        # metrics it's reporting on — a fixed generic query almost never matches a
+        # specific metric's threshold, making standard_source/is_verified_source always False.
+        pubmed_query = _pubmed_query_term(category) if category else "bioinformatics QC best practice"
 
     literature_note = ""
     if pubmed_query:
@@ -378,7 +401,8 @@ class Runner:
 
         openai_text = None
         if _openai_api_key():
-            openai_text = await __import__("asyncio").to_thread(_openai_request, agent, input)
+            category = run_config.trace_metadata.get("category") if run_config else None
+            openai_text = await __import__("asyncio").to_thread(_openai_request, agent, input, category)
 
         used_fallback = False
         if openai_text is not None:

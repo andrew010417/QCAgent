@@ -27,6 +27,8 @@ class QCMetricResult(BaseModel):
     standard_text: str  # human-readable threshold, e.g. "≥20 kb 권장"
     standard_min: float | None = None  # lower bound in a standard numeric unit (bp, %, x, Q), e.g. 20000
     standard_max: float | None = None  # upper bound if the threshold is a range; None otherwise
+    standard_source: str = ""  # citation if found in injected PubMed refs, else an explicit "model estimate" disclosure
+    is_verified_source: bool = False  # True only if standard_source is a real citation drawn from the injected PubMed refs
     status: Literal["PASS", "WARNING", "FAIL"]
     recommendation: str = ""
 
@@ -82,6 +84,8 @@ def _report_agent_fallback(agent: Agent, user_text: str, input: list) -> "QCRepo
                         standard_text="-",
                         standard_min=None,
                         standard_max=None,
+                        standard_source="규칙 기반 폴백 모드 — 근거 확인 불가",
+                        is_verified_source=False,
                         status="WARNING",
                         recommendation="원시 QC 도구 결과를 확인하세요.",
                     )
@@ -292,6 +296,10 @@ Rules:
    - `standard_min`: the lower bound of the threshold, converted to a single consistent numeric unit per metric (e.g. read length/N50 in bp — "≥20 kb" → 20000; quality scores as the plain Q number — "Q15" → 15; percentages/ratios as a 0-100 number — "70%" → 70; coverage as the plain multiplier — "30x" → 30).
    - `standard_max`: the upper bound if the threshold is a range (e.g. "70–80%" → standard_min=70, standard_max=80). If the threshold is only a lower bound (e.g. "≥20 kb"), leave `standard_max` as null.
    - If a threshold is qualitative, ambiguous, or cannot be reliably converted to a number (e.g. "실제 도구 결과를 확인하세요"), set BOTH `standard_min` and `standard_max` to null — do not guess.
+8. For each metric, fill `standard_source` and `is_verified_source` by checking ONLY ONE thing: does the "[NCBI PubMed reference samples]" system message (if you received one) actually state or clearly imply a threshold for THIS specific metric? There are exactly two allowed outcomes — never blend them, never hedge, never invent a citation that isn't in that system message:
+   - **Case 1 — verified**: the injected PubMed reference note covers this metric's threshold. Set `is_verified_source: true` and set `standard_source` to a real citation built strictly from the fields given in that note (author(s) if listed, year, and journal/source if listed) — e.g. `\"Kim et al., 2022, Genome Biology\"`. Do not fabricate an author name or journal that isn't present in the note; if the note omits authors, cite what it does give (e.g. title fragment + year + journal).
+   - **Case 2 — not verified**: no PubMed reference note was injected, or none of the injected references mention a threshold for this metric, or you are relying on your own pretrained knowledge of gold-standard QC thresholds. Set `is_verified_source: false` and set `standard_source` to exactly this string, verbatim, with nothing appended: `\"PubMed 문헌에서 직접 확인되지 않음, 모델 사전 지식 기반 추정치\"`.
+   - This is expected to vary metric-by-metric within the same report — some thresholds may be verified while others are not. Do not default every metric to the same case; check each one independently.
 
 ### OUTPUT FORMAT
 Return a single JSON object, and nothing else, matching this shape:
@@ -301,7 +309,7 @@ Return a single JSON object, and nothing else, matching this shape:
   \"verdict\": \"<분석 진행 가능 | 조건부 진행 | 재처리 권고>\",
   \"summary\": \"<one or two sentence overall quality summary, in Korean>\",
   \"metrics\": [
-    {\"metric\": \"<지표명>\", \"user_value\": \"<사용자 값>\", \"standard_text\": \"<Gold Standard 기준, human-readable>\", \"standard_min\": 20000, \"standard_max\": null, \"status\": \"<PASS|WARNING|FAIL>\", \"recommendation\": \"<권고사항>\"}
+    {\"metric\": \"<지표명>\", \"user_value\": \"<사용자 값>\", \"standard_text\": \"<Gold Standard 기준, human-readable>\", \"standard_min\": 20000, \"standard_max\": null, \"standard_source\": \"<real citation from injected PubMed refs, OR the exact case-2 disclosure string>\", \"is_verified_source\": true, \"status\": \"<PASS|WARNING|FAIL>\", \"recommendation\": \"<권고사항>\"}
   ],
   \"recommendations\": [\"<추가 downstream 분석 권고 1>\", \"...\"],
   \"text\": \"<the full comprehensive report as Korean Markdown, including the metrics table and final verdict line, for display/storage>\"

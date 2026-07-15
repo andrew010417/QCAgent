@@ -102,7 +102,8 @@ async def evaluate_workflow(workflow_input: WorkflowInput, experiment_text: str,
                 input=conversation_history,
                 run_config=RunConfig(trace_metadata={
                     "__trace_source__": "agent-builder",
-                    "workflow_id": "wf_evaluate"
+                    "workflow_id": "wf_evaluate",
+                    "category": category,
                 }),
             )
             if report_agent_result_temp.used_fallback:
@@ -112,7 +113,8 @@ async def evaluate_workflow(workflow_input: WorkflowInput, experiment_text: str,
                     input=conversation_history,
                     run_config=RunConfig(trace_metadata={
                         "__trace_source__": "agent-builder",
-                        "workflow_id": "wf_evaluate"
+                        "workflow_id": "wf_evaluate",
+                        "category": category,
                     }),
                 )
             conversation_history.extend([item.to_input_item() for item in report_agent_result_temp.new_items])
