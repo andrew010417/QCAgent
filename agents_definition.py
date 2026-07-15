@@ -1,4 +1,5 @@
 import re
+from typing import Literal
 
 from pydantic import BaseModel
 from agents import (
@@ -26,7 +27,7 @@ class QCMetricResult(BaseModel):
     standard_text: str  # human-readable threshold, e.g. "≥20 kb 권장"
     standard_min: float | None = None  # lower bound in a standard numeric unit (bp, %, x, Q), e.g. 20000
     standard_max: float | None = None  # upper bound if the threshold is a range; None otherwise
-    status: str  # PASS / WARNING / FAIL
+    status: Literal["PASS", "WARNING", "FAIL"]
     recommendation: str = ""
 
 
@@ -281,7 +282,10 @@ Rules:
 3. Provide specific, actionable downstream analysis recommendations for any WARNING or FAIL metrics.
 4. Write all Korean-language fields (summary, verdict, recommendations, text) naturally in Korean.
 5. The overall verdict must be exactly one of: 분석 진행 가능 / 조건부 진행 / 재처리 권고
-6. For each metric, in addition to the human-readable `standard_text`, also try to convert that threshold into numbers:
+6. Every metric's `status` field MUST be exactly one of these three literal strings: `PASS`, `WARNING`, `FAIL`. Nothing else is valid — never invent qualified or hedged variants such as `조건부 PASS`, `PASS/WARNING`, `PARTIAL`, `판단 보류`, `채택 가능`, etc. (this field is schema-enforced; any other string will cause the whole response to be rejected).
+   - When a metric's evaluation is uncertain, conditional, or depends on information you don't have (e.g. a coverage threshold that depends on an unknown genome size, or a threshold that varies by downstream analysis goal) — do NOT try to force a confident PASS or FAIL. Default `status` to `WARNING` in these cases.
+   - Never discard the nuance — move it into `recommendation` as a specific, concrete sentence spelling out the condition or the goal-dependent difference. For example, instead of hedging the status, write a `recommendation` like: "de novo assembly에는 부족하지만 SV 분석 목적이라면 충분한 수준입니다" or "genome size를 알 수 없어 coverage 판정이 유보됨 — 5 Mb 세균이면 충분하나 500 Mb 이상 genome이면 부족할 수 있음."
+7. For each metric, in addition to the human-readable `standard_text`, also try to convert that threshold into numbers:
    - `standard_min`: the lower bound of the threshold, converted to a single consistent numeric unit per metric (e.g. read length/N50 in bp — "≥20 kb" → 20000; quality scores as the plain Q number — "Q15" → 15; percentages/ratios as a 0-100 number — "70%" → 70; coverage as the plain multiplier — "30x" → 30).
    - `standard_max`: the upper bound if the threshold is a range (e.g. "70–80%" → standard_min=70, standard_max=80). If the threshold is only a lower bound (e.g. "≥20 kb"), leave `standard_max` as null.
    - If a threshold is qualitative, ambiguous, or cannot be reliably converted to a number (e.g. "실제 도구 결과를 확인하세요"), set BOTH `standard_min` and `standard_max` to null — do not guess.
