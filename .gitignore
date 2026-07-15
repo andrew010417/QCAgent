@@ -3,3 +3,6 @@ api_key.py
 __pycache__/
 *.pyc
 data/
+
+# Company logo — not for public distribution
+assets/logo.png
