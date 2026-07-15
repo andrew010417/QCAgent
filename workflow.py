@@ -6,6 +6,7 @@ from agents_definition import (
     get_qc_agent,
     get_recommended_tools,
     should_run_report,
+    QCReportSchema,
     WorkflowInput,
 )
 
@@ -105,8 +106,10 @@ async def evaluate_workflow(workflow_input: WorkflowInput, experiment_text: str,
                 }),
             )
             conversation_history.extend([item.to_input_item() for item in report_agent_result_temp.new_items])
+            final_output = report_agent_result_temp.final_output
             report_agent_result = {
-                "output_text": report_agent_result_temp.final_output_as(str)
+                "output_text": report_agent_result_temp.final_output_as(str),
+                "metrics": final_output.metrics if isinstance(final_output, QCReportSchema) else [],
             }
 
         return {

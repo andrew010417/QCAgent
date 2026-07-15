@@ -1,7 +1,10 @@
 import asyncio
+from pathlib import Path
+
 from db import init_db, save_workflow_result
 from workflow import evaluate_workflow, prepare_workflow
 from agents_definition import WorkflowInput
+from visualize import save_qc_chart
 
 
 def main():
@@ -57,6 +60,15 @@ def main():
         report_output=evaluate_result["report_result"]["output_text"] if evaluate_result["report_result"] else None,
     )
     print(f"Saved run id: {run_id}")
+
+    report_result = evaluate_result["report_result"]
+    metrics = report_result.get("metrics") if report_result else None
+    if metrics:
+        charts_dir = Path("./data/charts")
+        charts_dir.mkdir(parents=True, exist_ok=True)
+        chart_path = charts_dir / f"qc_chart_run{run_id}.png"
+        save_qc_chart(metrics, chart_path)
+        print(f"차트 저장됨: {chart_path}")
 
 
 if __name__ == "__main__":
