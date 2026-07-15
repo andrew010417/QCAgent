@@ -23,7 +23,9 @@ class WorkflowInput(BaseModel):
 class QCMetricResult(BaseModel):
     metric: str
     user_value: str
-    standard: str
+    standard_text: str  # human-readable threshold, e.g. "≥20 kb 권장"
+    standard_min: float | None = None  # lower bound in a standard numeric unit (bp, %, x, Q), e.g. 20000
+    standard_max: float | None = None  # upper bound if the threshold is a range; None otherwise
     status: str  # PASS / WARNING / FAIL
     recommendation: str = ""
 
@@ -76,7 +78,9 @@ def _report_agent_fallback(agent: Agent, user_text: str, input: list) -> "QCRepo
                     QCMetricResult(
                         metric=name,
                         user_value="-",
-                        standard="-",
+                        standard_text="-",
+                        standard_min=None,
+                        standard_max=None,
                         status="WARNING",
                         recommendation="원시 QC 도구 결과를 확인하세요.",
                     )
@@ -277,6 +281,10 @@ Rules:
 3. Provide specific, actionable downstream analysis recommendations for any WARNING or FAIL metrics.
 4. Write all Korean-language fields (summary, verdict, recommendations, text) naturally in Korean.
 5. The overall verdict must be exactly one of: 분석 진행 가능 / 조건부 진행 / 재처리 권고
+6. For each metric, in addition to the human-readable `standard_text`, also try to convert that threshold into numbers:
+   - `standard_min`: the lower bound of the threshold, converted to a single consistent numeric unit per metric (e.g. read length/N50 in bp — "≥20 kb" → 20000; quality scores as the plain Q number — "Q15" → 15; percentages/ratios as a 0-100 number — "70%" → 70; coverage as the plain multiplier — "30x" → 30).
+   - `standard_max`: the upper bound if the threshold is a range (e.g. "70–80%" → standard_min=70, standard_max=80). If the threshold is only a lower bound (e.g. "≥20 kb"), leave `standard_max` as null.
+   - If a threshold is qualitative, ambiguous, or cannot be reliably converted to a number (e.g. "실제 도구 결과를 확인하세요"), set BOTH `standard_min` and `standard_max` to null — do not guess.
 
 ### OUTPUT FORMAT
 Return a single JSON object, and nothing else, matching this shape:
@@ -286,7 +294,7 @@ Return a single JSON object, and nothing else, matching this shape:
   \"verdict\": \"<분석 진행 가능 | 조건부 진행 | 재처리 권고>\",
   \"summary\": \"<one or two sentence overall quality summary, in Korean>\",
   \"metrics\": [
-    {\"metric\": \"<지표명>\", \"user_value\": \"<사용자 값>\", \"standard\": \"<Gold Standard 기준>\", \"status\": \"<PASS|WARNING|FAIL>\", \"recommendation\": \"<권고사항>\"}
+    {\"metric\": \"<지표명>\", \"user_value\": \"<사용자 값>\", \"standard_text\": \"<Gold Standard 기준, human-readable>\", \"standard_min\": 20000, \"standard_max\": null, \"status\": \"<PASS|WARNING|FAIL>\", \"recommendation\": \"<권고사항>\"}
   ],
   \"recommendations\": [\"<추가 downstream 분석 권고 1>\", \"...\"],
   \"text\": \"<the full comprehensive report as Korean Markdown, including the metrics table and final verdict line, for display/storage>\"

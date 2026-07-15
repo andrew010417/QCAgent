@@ -346,6 +346,18 @@ def _openai_request(agent: Agent, input: list[Dict[str, Any]]) -> str | None:
     return None
 
 
+def _strip_code_fence(text: str) -> str:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    return stripped
+
+
 class Runner:
     @staticmethod
     async def run(agent: Agent, input: list[Dict[str, Any]], run_config: RunConfig) -> AgentRunResult:
@@ -365,7 +377,7 @@ class Runner:
         if openai_text is not None:
             if agent.output_type:
                 try:
-                    parsed = json.loads(openai_text)
+                    parsed = json.loads(_strip_code_fence(openai_text))
                     final_output = agent.output_type(**parsed)
                 except Exception:
                     if agent.fallback_builder:
