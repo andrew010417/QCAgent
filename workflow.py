@@ -119,9 +119,14 @@ async def evaluate_workflow(workflow_input: WorkflowInput, experiment_text: str,
                 )
             conversation_history.extend([item.to_input_item() for item in report_agent_result_temp.new_items])
             final_output = report_agent_result_temp.final_output
+            is_structured = isinstance(final_output, QCReportSchema)
             report_agent_result = {
                 "output_text": report_agent_result_temp.final_output_as(str),
-                "metrics": final_output.metrics if isinstance(final_output, QCReportSchema) else [],
+                "category": final_output.category if is_structured else category,
+                "verdict": final_output.verdict if is_structured else "-",
+                "summary": final_output.summary if is_structured else "",
+                "metrics": final_output.metrics if is_structured else [],
+                "recommendations": final_output.recommendations if is_structured else [],
             }
 
         return {

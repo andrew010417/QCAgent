@@ -1,10 +1,12 @@
 import asyncio
+from datetime import date
 from pathlib import Path
 
 from db import init_db, save_workflow_result
 from workflow import evaluate_workflow, prepare_workflow
 from agents_definition import WorkflowInput
 from visualize import save_qc_chart
+from pdf_report import save_qc_report_pdf
 
 
 ANALYSIS_PURPOSE_EXAMPLES = {
@@ -89,6 +91,25 @@ def main():
         chart_path = charts_dir / f"qc_chart_run{run_id}.png"
         save_qc_chart(metrics, chart_path)
         print(f"차트 저장됨: {chart_path}")
+
+    if report_result:
+        reports_dir = Path("./data/reports")
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        pdf_path = reports_dir / f"qc_report_run{run_id}.pdf"
+        save_qc_report_pdf(
+            category=report_result.get("category", category),
+            analysis_purpose=analysis_purpose,
+            run_date=date.today().isoformat(),
+            report={
+                "verdict": report_result.get("verdict"),
+                "summary": report_result.get("summary"),
+                "metrics": metrics or [],
+                "recommendations": report_result.get("recommendations"),
+                "text": report_result.get("output_text"),
+            },
+            output_path=pdf_path,
+        )
+        print(f"PDF 리포트 저장됨: {pdf_path}")
 
 
 if __name__ == "__main__":
