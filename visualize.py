@@ -36,6 +36,19 @@ GRIDLINE = "#e1e0d9"
 BASELINE = "#c3c2b7"
 BAND_FILL = "#c3c2b7"
 
+# Nominal per-panel size (inches) used by every metric-panel grid in this
+# module and in pdf_report.py's chart pages — kept as named constants since
+# _required_hspace's inches-to-hspace-fraction conversion assumes this exact
+# per-axes height.
+PANEL_WIDTH_IN = 4.8
+PANEL_HEIGHT_IN = 5.4
+
+MIN_HSPACE = 0.9
+# Caption depth is measured from real font metrics, which are still subject to
+# hinting/rounding noise — pad the computed hspace so that noise never eats
+# into the next row.
+HSPACE_SAFETY_MARGIN = 1.2
+
 _KOREAN_FONT_CANDIDATES = [
     "Malgun Gothic",   # Windows default Korean sans
     "AppleGothic",     # macOS fallback
@@ -77,15 +90,115 @@ def _as_dict(metric: Any) -> dict:
     raise TypeError(f"Unsupported metric type: {type(metric)!r}")
 
 
+def _draw_caption_block(ax, metric: dict, renderer) -> float:
+    """Draw the headline/standard-text/source caption stack below a panel,
+    positioning each block right below the actual rendered extent of the
+    previous one (measured via the renderer) instead of a hand-tuned
+    axes-fraction offset — a fixed offset assumed a fixed number of lines,
+    and silently overlapped the next block whenever real content ran longer.
+
+    Returns the axes-fraction y of the lowest point reached (<= 0), which
+    callers use to size row spacing (_required_hspace) to the actual content.
+    """
+    user_value_text = metric.get("user_value", "")
+    status = (metric.get("status") or "").upper()
+    standard_text = metric.get("standard_text", "") or ""
+    standard_source = metric.get("standard_source", "") or ""
+    is_verified_source = bool(metric.get("is_verified_source"))
+    user_value = _extract_numeric(user_value_text)
+
+    def _place(y_top: float, text: str, **kwargs) -> float:
+        if not text:
+            return y_top
+        t = ax.text(0.5, y_top, text, transform=ax.transAxes, ha="center", va="top", **kwargs)
+        bbox = t.get_window_extent(renderer=renderer).transformed(ax.transAxes.inverted())
+        return bbox.y0 - 0.02  # small gap before the next block
+
+    headline = f"{user_value_text or (f'{user_value:g}' if user_value is not None else '-')} · {status or '-'}"
+    y = _place(-0.10, headline, fontsize=9, color=TEXT_PRIMARY)
+
+    if standard_text:
+        wrapped = "\n".join(textwrap.wrap(standard_text, width=30, max_lines=3, placeholder="…"))
+        y = _place(y, wrapped, fontsize=7.5, color=TEXT_MUTED, linespacing=1.4)
+
+    if standard_source:
+        if is_verified_source:
+            source_label = f"출처: {standard_source}"
+            source_color = TEXT_MUTED
+            source_weight = "normal"
+        else:
+            source_label = f"(추정치) {standard_source}"
+            source_color = STATUS_COLORS["WARNING"]
+            source_weight = "bold"
+        wrapped_source = "\n".join(textwrap.wrap(source_label, width=34, max_lines=2, placeholder="…"))
+        y = _place(y, wrapped_source, fontsize=7, color=source_color, fontweight=source_weight, linespacing=1.3)
+
+    return y
+
+
+def _estimate_caption_depth_in(metric: dict) -> float:
+    """Measure, in inches, how far this metric's caption block extends below
+    its panel's x-axis — rendered on a scratch axes sized like the real
+    panels, so the measurement reflects actual font metrics rather than a
+    guess. Returns 0 for metrics that draw no caption (unparseable value)."""
+    if _extract_numeric(metric.get("user_value")) is None:
+        return 0.0
+    scratch_fig = plt.figure(figsize=(PANEL_WIDTH_IN, PANEL_HEIGHT_IN))
+    try:
+        ax = scratch_fig.add_axes((0, 0, 1, 1))
+        ax.axis("off")
+        renderer = scratch_fig.canvas.get_renderer()
+        bottom = _draw_caption_block(ax, metric, renderer)
+    finally:
+        plt.close(scratch_fig)
+    return abs(min(bottom, 0.0)) * PANEL_HEIGHT_IN
+
+
+def _required_hspace(metrics: list[dict]) -> float:
+    """hspace (see Figure.subplots_adjust) sized to the worst-case caption
+    depth among the given metrics — replaces a fixed value that was
+    "calibrated for ~2 lines" and silently overlapped once real captions
+    (long standard_text + source disclosure) ran longer than that."""
+    if not metrics:
+        return MIN_HSPACE
+    max_depth_in = max(_estimate_caption_depth_in(m) for m in metrics)
+    return max(MIN_HSPACE, (max_depth_in * HSPACE_SAFETY_MARGIN) / PANEL_HEIGHT_IN)
+
+
+def _required_bottom_margin(metrics: list[dict], nrows: int, *, legend_reserve_in: float = 0.4) -> float:
+    """Fraction of the figure's total height to reserve below the last row
+    of panels, for tight_layout's rect — sized to the worst-case caption
+    depth (same measurement as _required_hspace) plus room for the status
+    legend under it. A fixed fraction (the previous "0.06") doesn't scale
+    with how tall the grid is, so it was enough for a short caption but let
+    the bottom row's caption bleed into the legend once captions grew."""
+    if not metrics:
+        return 0.06
+    max_depth_in = max(_estimate_caption_depth_in(m) for m in metrics)
+    total_height_in = PANEL_HEIGHT_IN * nrows
+    return min(0.5, (max_depth_in * HSPACE_SAFETY_MARGIN + legend_reserve_in) / total_height_in)
+
+
+def _draw_panel_captions(fig, panels: list[tuple]) -> None:
+    """Draw each (ax, metric) panel's caption block. Must run *after* the
+    figure's layout is finalized (tight_layout + subplots_adjust) — captions
+    drawn during the initial per-panel loop were measured against each
+    axes' still-default (pre-hspace-adjustment) size, so the axes-fraction
+    positions no longer matched once subplots_adjust shrank the axes to make
+    room for hspace, and captions bled into the row below anyway."""
+    renderer = fig.canvas.get_renderer()
+    for ax, metric in panels:
+        if _extract_numeric(metric.get("user_value")) is None:
+            continue
+        _draw_caption_block(ax, metric, renderer)
+
+
 def _draw_metric_panel(ax, metric: dict) -> None:
     name = metric.get("metric", "")
     user_value_text = metric.get("user_value", "")
     status = (metric.get("status") or "").upper()
     standard_min = metric.get("standard_min")
     standard_max = metric.get("standard_max")
-    standard_text = metric.get("standard_text", "") or ""
-    standard_source = metric.get("standard_source", "") or ""
-    is_verified_source = bool(metric.get("is_verified_source"))
 
     color = STATUS_COLORS.get(status, DEFAULT_STATUS_COLOR)
     user_value = _extract_numeric(user_value_text)
@@ -136,41 +249,8 @@ def _draw_metric_panel(ax, metric: dict) -> None:
         0, user_value + top * 0.03, f"{user_value:g}",
         ha="center", va="bottom", fontsize=9, color=TEXT_PRIMARY, fontweight="bold",
     )
-
-    # Caption block below the axes, in axes-fraction coordinates so it never
-    # collides with the bar/gridlines regardless of each panel's data scale.
-    headline = f"{user_value_text or f'{user_value:g}'} · {status or '-'}"
-    ax.text(
-        0.5, -0.10, headline, transform=ax.transAxes,
-        ha="center", va="top", fontsize=9, color=TEXT_PRIMARY,
-    )
-    # standard_text can wrap up to 3 lines, so the source block below it must shift
-    # down by however many lines standard_text actually used — a fixed y position
-    # (calibrated for ~2 lines) gets overrun and visually collides whenever a
-    # threshold description is long enough to wrap to all 3.
-    source_y = -0.20
-    if standard_text:
-        wrapped_lines = textwrap.wrap(standard_text, width=30, max_lines=3, placeholder="…")
-        wrapped = "\n".join(wrapped_lines)
-        ax.text(
-            0.5, -0.20, wrapped, transform=ax.transAxes,
-            ha="center", va="top", fontsize=7.5, color=TEXT_MUTED, linespacing=1.4,
-        )
-        source_y = -0.20 - len(wrapped_lines) * 0.05 - 0.03
-    if standard_source:
-        if is_verified_source:
-            source_label = f"출처: {standard_source}"
-            source_color = TEXT_MUTED
-            source_weight = "normal"
-        else:
-            source_label = f"(추정치) {standard_source}"
-            source_color = STATUS_COLORS["WARNING"]
-            source_weight = "bold"
-        wrapped_source = "\n".join(textwrap.wrap(source_label, width=34, max_lines=2, placeholder="…"))
-        ax.text(
-            0.5, source_y, wrapped_source, transform=ax.transAxes,
-            ha="center", va="top", fontsize=7, color=source_color, fontweight=source_weight, linespacing=1.3,
-        )
+    # Caption block is drawn later by _draw_panel_captions, once the grid's
+    # layout (and thus this axes' final size) is settled.
 
 
 def save_qc_chart(metrics: list[Any], output_path: str | Path) -> Path:
@@ -195,14 +275,17 @@ def save_qc_chart(metrics: list[Any], output_path: str | Path) -> Path:
     ncols = min(3, len(metric_dicts))
     nrows = (len(metric_dicts) + ncols - 1) // ncols
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=(4.8 * ncols, 5.4 * nrows), squeeze=False, facecolor="#fcfcfb"
+        nrows, ncols, figsize=(PANEL_WIDTH_IN * ncols, PANEL_HEIGHT_IN * nrows),
+        squeeze=False, facecolor="#fcfcfb",
     )
 
+    panels = []
     for idx, metric in enumerate(metric_dicts):
         row, col = divmod(idx, ncols)
         ax = axes[row][col]
         ax.set_facecolor("#fcfcfb")
         _draw_metric_panel(ax, metric)
+        panels.append((ax, metric))
 
     for idx in range(len(metric_dicts), nrows * ncols):
         row, col = divmod(idx, ncols)
@@ -220,10 +303,17 @@ def save_qc_chart(metrics: list[Any], output_path: str | Path) -> Path:
     )
 
     fig.suptitle("QC 지표 요약", fontsize=15, fontweight="bold", color=TEXT_PRIMARY, y=0.995)
-    # Generous bottom margin per subplot (caption block) and hspace between
-    # rows so one panel's caption never runs into the row below it.
-    fig.tight_layout(rect=(0, 0.06, 1, 0.96))
-    fig.subplots_adjust(hspace=1.35, wspace=0.35)
+    # Both the bottom margin (rect) and hspace are sized to the worst-case
+    # caption depth among these metrics (see _required_bottom_margin /
+    # _required_hspace) so a panel's caption never runs into the row below it
+    # or into the legend, regardless of how many lines the caption wraps to.
+    bottom = _required_bottom_margin(metric_dicts, nrows)
+    fig.tight_layout(rect=(0, bottom, 1, 0.96))
+    fig.subplots_adjust(hspace=_required_hspace(metric_dicts), wspace=0.35)
+
+    # Captions are drawn only now that every axes has its final size/position,
+    # so the renderer-measured placements in _draw_caption_block are accurate.
+    _draw_panel_captions(fig, panels)
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
