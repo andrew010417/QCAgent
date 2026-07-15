@@ -105,6 +105,16 @@ async def evaluate_workflow(workflow_input: WorkflowInput, experiment_text: str,
                     "workflow_id": "wf_evaluate"
                 }),
             )
+            if report_agent_result_temp.used_fallback:
+                print("리포트 생성 재시도 중...")
+                report_agent_result_temp = await Runner.run(
+                    report_agent,
+                    input=conversation_history,
+                    run_config=RunConfig(trace_metadata={
+                        "__trace_source__": "agent-builder",
+                        "workflow_id": "wf_evaluate"
+                    }),
+                )
             conversation_history.extend([item.to_input_item() for item in report_agent_result_temp.new_items])
             final_output = report_agent_result_temp.final_output
             report_agent_result = {

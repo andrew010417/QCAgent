@@ -67,9 +67,15 @@ class Agent:
 
 
 class AgentRunResult:
-    def __init__(self, final_output: BaseModel, new_items: Optional[List[TResponseInputItem]] = None):
+    def __init__(
+        self,
+        final_output: BaseModel,
+        new_items: Optional[List[TResponseInputItem]] = None,
+        used_fallback: bool = False,
+    ):
         self.final_output = final_output
         self.new_items = new_items or []
+        self.used_fallback = used_fallback
 
     def final_output_as(self, output_type: type) -> Any:
         if output_type is str:
@@ -374,6 +380,7 @@ class Runner:
         if _openai_api_key():
             openai_text = await __import__("asyncio").to_thread(_openai_request, agent, input)
 
+        used_fallback = False
         if openai_text is not None:
             if agent.output_type:
                 try:
@@ -382,11 +389,13 @@ class Runner:
                 except Exception:
                     if agent.fallback_builder:
                         final_output = agent.fallback_builder(agent, user_text, input)
+                        used_fallback = True
                     else:
                         raise
             else:
                 final_output = GenericOutput(text=openai_text)
         else:
+            used_fallback = True
             if agent.fallback_builder:
                 final_output = agent.fallback_builder(agent, user_text, input)
             else:
@@ -410,4 +419,4 @@ class Runner:
                 content=[{"type": "output_text", "text": output_text}],
             )
         ]
-        return AgentRunResult(final_output=final_output, new_items=new_items)
+        return AgentRunResult(final_output=final_output, new_items=new_items, used_fallback=used_fallback)
