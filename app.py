@@ -7,6 +7,19 @@ from agents_definition import WorkflowInput
 from visualize import save_qc_chart
 
 
+ANALYSIS_PURPOSE_EXAMPLES = {
+    "RNA-seq": "차등발현 분석, 바이오마커 발굴, 대안적 스플라이싱 분석",
+    "WGS": "SNP calling, 구조 변이 분석, T2T 어셈블리",
+    "Methylation": "DMR 분석, 에피게놈 프로파일링, 암 바이오마커 발굴",
+    "HiFi": "De novo assembly, SV 분석, T2T genome 구축",
+    "ONT": "De novo assembly, SV 분석, 메틸레이션 검출, 전사체 분석",
+    "Illumina": "WGS variant calling, RNA-seq, ChIP-seq",
+    "Hi-C": "TAD 분석, 염색체 스캐폴딩, 3D 게놈 구조 분석",
+    "Single-cell": "세포 타입 분류, 궤적 분석, 희귀 세포 발굴",
+    "ATAC-seq": "열린 염색질 분석, 전사인자 결합 예측, 피크 calling",
+}
+
+
 def main():
     init_db()
 
@@ -25,13 +38,15 @@ def main():
     for tool in prepare_result['recommended_tools']:
         print(f"- {tool}")
 
-    analysis_purpose = input("\n분석 목적을 입력하세요 (예: de novo assembly): ").strip()
+    category = prepare_result["category"]
+    purpose_example = ANALYSIS_PURPOSE_EXAMPLES.get(category, "de novo assembly")
+    analysis_purpose = input(f"\n분석 목적을 입력하세요 (예: {purpose_example}): ").strip()
 
-    print("\nEnter experiment/test data details for evaluation. Finish with an empty line:")
+    print("\nEnter experiment/test data details for evaluation. Type END on its own line to finish:")
     lines = []
     while True:
         line = input()
-        if not line.strip():
+        if line.strip() == "END":
             break
         lines.append(line)
 
@@ -47,7 +62,7 @@ def main():
         evaluate_workflow(
             workflow_input,
             experiment_text=experiment_text,
-            category=prepare_result["category"],
+            category=category,
         )
     )
 
@@ -60,7 +75,7 @@ def main():
 
     run_id = save_workflow_result(
         input_text=input_text,
-        category=prepare_result["category"],
+        category=category,
         qc_output=evaluate_result["qc_result"]["output_text"],
         report_output=evaluate_result["report_result"]["output_text"] if evaluate_result["report_result"] else None,
     )
