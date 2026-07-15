@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel
 from agents import (
     Agent,
@@ -18,6 +20,23 @@ class WorkflowInput(BaseModel):
     input_as_text: str
 
 
+class QCMetricResult(BaseModel):
+    metric: str
+    user_value: str
+    standard: str
+    status: str  # PASS / WARNING / FAIL
+    recommendation: str = ""
+
+
+class QCReportSchema(BaseModel):
+    category: str
+    verdict: str  # 분석 진행 가능 / 조건부 진행 / 재처리 권고
+    summary: str
+    metrics: list[QCMetricResult] = []
+    recommendations: list[str] = []
+    text: str  # full Markdown report, kept for display/DB storage backward-compat
+
+
 def _classify_fallback(agent: Agent, user_text: str, input: list) -> "ClassifySchema":
     return ClassifySchema(category=classify_category(user_text))
 
@@ -31,8 +50,59 @@ def _qc_agent_fallback(agent: Agent, user_text: str, input: list) -> GenericOutp
     return GenericOutput(text=build_qc_summary(agent.name, user_text))
 
 
-def _report_agent_fallback(agent: Agent, user_text: str, input: list) -> GenericOutput:
-    return GenericOutput(text=build_report_summary(input))
+def _report_agent_fallback(agent: Agent, user_text: str, input: list) -> "QCReportSchema":
+    qc_text = None
+    category = "Unknown"
+    for message in input:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        contents = message.get("content", [])
+        if not contents or not isinstance(contents, list) or not isinstance(contents[0], dict):
+            continue
+        text = contents[0].get("text", "")
+        if "QC Evaluation" in text:
+            qc_text = text
+            match = re.match(r"\[(.+?) QC Evaluation\]", text)
+            if match:
+                category = match.group(1)
+            break
+
+    metrics: list[QCMetricResult] = []
+    if qc_text:
+        for line in qc_text.splitlines():
+            if line.startswith("중요 지표:"):
+                metric_names = [m.strip() for m in line.replace("중요 지표:", "").split(",")]
+                metrics = [
+                    QCMetricResult(
+                        metric=name,
+                        user_value="-",
+                        standard="-",
+                        status="WARNING",
+                        recommendation="원시 QC 도구 결과를 확인하세요.",
+                    )
+                    for name in metric_names
+                    if name
+                ]
+                break
+
+    verdict = "조건부 진행" if qc_text else "재처리 권고"
+    summary = (
+        f"{category} 데이터에 대한 QC 요약을 기반으로 생성된 보고서입니다."
+        if qc_text
+        else "QC 결과를 생성할 수 없어 재처리가 필요합니다."
+    )
+
+    return QCReportSchema(
+        category=category,
+        verdict=verdict,
+        summary=summary,
+        metrics=metrics,
+        recommendations=[
+            "필요 시 NanoPlot / NanoStat 결과를 추가로 확인하세요.",
+            "이상 지표가 발견되면 재분석 또는 시퀀싱 재수행을 고려하세요.",
+        ],
+        text=build_report_summary(input),
+    )
 
 
 classify = Agent(
@@ -203,11 +273,25 @@ Your job is to synthesize the QC evaluation results provided by the specialized 
 
 Rules:
 1. Summarize the overall quality of the data based on the specialist's evaluation.
-2. Present the extracted metrics and their PASS/WARNING/FAIL statuses in a clear Markdown Table:
-[지표 | 사용자 값 | Gold Standard 기준 | 상태 | 권고사항]
+2. Extract each metric and its PASS/WARNING/FAIL status with the Gold Standard threshold and a recommendation.
 3. Provide specific, actionable downstream analysis recommendations for any WARNING or FAIL metrics.
-4. Translate and output the entire final comprehensive report naturally in Korean.
-5. End the report with an overall verdict: 분석 진행 가능 / 조건부 진행 / 재처리 권고""",
+4. Write all Korean-language fields (summary, verdict, recommendations, text) naturally in Korean.
+5. The overall verdict must be exactly one of: 분석 진행 가능 / 조건부 진행 / 재처리 권고
+
+### OUTPUT FORMAT
+Return a single JSON object, and nothing else, matching this shape:
+```json
+{
+  \"category\": \"<omics category, e.g. ONT>\",
+  \"verdict\": \"<분석 진행 가능 | 조건부 진행 | 재처리 권고>\",
+  \"summary\": \"<one or two sentence overall quality summary, in Korean>\",
+  \"metrics\": [
+    {\"metric\": \"<지표명>\", \"user_value\": \"<사용자 값>\", \"standard\": \"<Gold Standard 기준>\", \"status\": \"<PASS|WARNING|FAIL>\", \"recommendation\": \"<권고사항>\"}
+  ],
+  \"recommendations\": [\"<추가 downstream 분석 권고 1>\", \"...\"],
+  \"text\": \"<the full comprehensive report as Korean Markdown, including the metrics table and final verdict line, for display/storage>\"
+}
+```""",
     model="gpt-4o-mini",
     model_settings=ModelSettings(
         temperature=1,
@@ -215,6 +299,7 @@ Rules:
         max_tokens=10000,
         store=True
     ),
+    output_type=QCReportSchema,
     fallback_builder=_report_agent_fallback,
 )
 
