@@ -25,6 +25,8 @@ def main():
     for tool in prepare_result['recommended_tools']:
         print(f"- {tool}")
 
+    analysis_purpose = input("\n분석 목적을 입력하세요 (예: de novo assembly): ").strip()
+
     print("\nEnter experiment/test data details for evaluation. Finish with an empty line:")
     lines = []
     while True:
@@ -37,6 +39,9 @@ def main():
     if not experiment_text:
         print("No experiment data provided. Exiting after recommendation stage.")
         return
+
+    if analysis_purpose:
+        experiment_text = f"분석 목적: {analysis_purpose}\n\n{experiment_text}"
 
     evaluate_result = asyncio.run(
         evaluate_workflow(

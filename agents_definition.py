@@ -184,11 +184,12 @@ Output ONLY one exact word from the list [RNA-seq, WGS, Methylation, HiFi, ONT, 
 rna_seq_qc_agent = Agent(
     name="RNA-seq QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"RNA-seq 데이터의 최종 분석 목적이 무엇인가요? (예: 차등발현 분석, 바이오마커 발굴, 대안적 스플라이싱 분석 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (Mapping rate, Duplication rate, Total reads, Q30 rate 등) from recent bioinformatics literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (Mapping rate, Duplication rate, Total reads, Q30 rate 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
@@ -215,11 +216,12 @@ Recommended QC tools:
 wgs_qc_agent = Agent(
     name="WGS QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"WGS 데이터의 최종 분석 목적이 무엇인가요? (예: SNP calling, 구조 변이 분석, T2T 어셈블리 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (BUSCO, QV, N50, Coverage 등) from recent bioinformatics literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (BUSCO, QV, N50, Coverage 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
@@ -245,11 +247,12 @@ Recommended QC tools:
 methylation_qc_agent = Agent(
     name="Methylation QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"Methylation 데이터의 최종 분석 목적이 무엇인가요? (예: DMR 분석, 에피게놈 프로파일링, 암 바이오마커 발굴 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (Detection rate, Beta value distribution, Batch effect 등) from recent literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (Detection rate, Beta value distribution, Batch effect 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
@@ -319,11 +322,12 @@ Return a single JSON object, and nothing else, matching this shape:
 hifi_qc_agent = Agent(
     name="HiFi QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"HiFi 데이터의 최종 분석 목적이 무엇인가요? (예: De novo assembly, SV 분석, T2T genome 구축 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (Mean read length, Mean quality score, N50, Total bases 등) from recent PacBio HiFi literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (Mean read length, Mean quality score, N50, Total bases 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
@@ -348,11 +352,12 @@ Recommended QC tools:
 ont_qc_agent = Agent(
     name="ONT QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"ONT 데이터의 최종 분석 목적이 무엇인가요? (예: De novo assembly, SV 분석, 메틸레이션 검출, 전사체 분석 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (Mean read length, N50, Mean quality score, Q20 ratio 등) from recent ONT literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (Mean read length, N50, Mean quality score, Q20 ratio 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
@@ -378,11 +383,12 @@ Recommended QC tools:
 illumina_qc_agent = Agent(
     name="Illumina QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"Illumina 데이터의 최종 분석 목적이 무엇인가요? (예: WGS variant calling, RNA-seq, ChIP-seq 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (Q30 rate, Total reads, GC content, Duplication rate, Adapter contamination 등) from recent literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (Q30 rate, Total reads, GC content, Duplication rate, Adapter contamination 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
@@ -409,11 +415,12 @@ Recommended QC tools:
 hi_c_qc_agent = Agent(
     name="Hi-C QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"Hi-C 데이터의 최종 분석 목적이 무엇인가요? (예: TAD 분석, 염색체 스캐폴딩, 3D 게놈 구조 분석 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (Valid pairs, Cis ratio, Trans ratio, Duplication rate 등) from recent Hi-C literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (Valid pairs, Cis ratio, Trans ratio, Duplication rate 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
@@ -439,11 +446,12 @@ Recommended QC tools:
 single_cell_qc_agent = Agent(
     name="Single-cell QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"scRNA-seq 데이터의 최종 분석 목적이 무엇인가요? (예: 세포 타입 분류, 궤적 분석, 희귀 세포 발굴 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (Cells detected, Median genes/cell, Median UMI/cell, MT ratio, Doublet rate 등) from recent scRNA-seq literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (Cells detected, Median genes/cell, Median UMI/cell, MT ratio, Doublet rate 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
@@ -470,11 +478,12 @@ Recommended QC tools:
 atac_seq_qc_agent = Agent(
     name="ATAC-seq QC Agent",
     instructions="""[Step 1: Context Inquiry]
-Do not evaluate the data immediately. First, ask the user:
+If the user's message already contains a line starting with \"분석 목적:\", treat that as the analysis purpose and skip directly to Step 2 — do not ask the question below.
+Otherwise, do not evaluate the data immediately. First, ask the user:
 \"ATAC-seq 데이터의 최종 분석 목적이 무엇인가요? (예: 열린 염색질 분석, 전사인자 결합 예측, 피크 calling 등)\"
 
 [Step 2: Dynamic Gold Standard Search]
-Once the user provides the goal, use your Web Search tool to find the current gold standard QC thresholds (FRiP score, TSS enrichment, Duplication rate, Fragment size distribution 등) from recent ATAC-seq literature specific to that goal.
+You have no interactive web search tool in this single-turn call — do not say you will search or ask the user to wait. Use any PubMed reference summaries provided in a separate system message, together with your own knowledge of established gold standard QC thresholds (FRiP score, TSS enrichment, Duplication rate, Fragment size distribution 등) for that goal, and proceed directly to Step 3 in this same response.
 
 [Step 3: Evaluate & Report]
 Evaluate the user's QC result based on the dynamic thresholds you found.
