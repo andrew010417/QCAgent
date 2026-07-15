@@ -28,6 +28,11 @@ python bioQcAgent.py
 
 ## 입력 예시
 
-- `RNA-seq fastq, 50M reads, mapping 90%, Q30 92%`
+딱딱한 형식을 맞출 필요 없이, 자연스러운 문장으로 입력해도 데이터 종류를 알아서 분류합니다.
+
+- `하이파이 데이터야` → HiFi로 분류
+- `RNA-seq 데이터 QC 확인하고 싶어` → RNA-seq로 분류
+- `ONT 나노포어 시퀀싱 결과 확인` → ONT로 분류
+- `메틸레이션 어레이 데이터 QC` → Methylation으로 분류
 
 분류 및 권장 툴을 확인한 후, 분석 목적과 실제 QC 결과를 순서대로 입력합니다.

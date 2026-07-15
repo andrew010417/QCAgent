@@ -288,6 +288,7 @@ Rules:
 2. Extract each metric and its PASS/WARNING/FAIL status with the Gold Standard threshold and a recommendation.
 3. Provide specific, actionable downstream analysis recommendations for any WARNING or FAIL metrics.
 4. Write all Korean-language fields (summary, verdict, recommendations, text) naturally in Korean.
+   - Keep `text` compact: a Markdown metrics table (지표 | 사용자 값 | Gold Standard 기준 | 상태 | 권고사항) plus a short 2-4 sentence overall summary and the verdict line. Do NOT restate each metric's full rationale or `standard_source` citation a second time in prose inside `text` — that detail already lives in `metrics[]`; repeating it verbatim burns output budget and risks truncating the JSON before it closes.
 5. The overall verdict must be exactly one of: 분석 진행 가능 / 조건부 진행 / 재처리 권고
 6. Every metric's `status` field MUST be exactly one of these three literal strings: `PASS`, `WARNING`, `FAIL`. Nothing else is valid — never invent qualified or hedged variants such as `조건부 PASS`, `PASS/WARNING`, `PARTIAL`, `판단 보류`, `채택 가능`, etc. (this field is schema-enforced; any other string will cause the whole response to be rejected).
    - When a metric's evaluation is uncertain, conditional, or depends on information you don't have (e.g. a coverage threshold that depends on an unknown genome size, or a threshold that varies by downstream analysis goal) — do NOT try to force a confident PASS or FAIL. Default `status` to `WARNING` in these cases.
@@ -319,7 +320,11 @@ Return a single JSON object, and nothing else, matching this shape:
     model_settings=ModelSettings(
         temperature=1,
         top_p=1,
-        max_tokens=10000,
+        # `metrics[].standard_source` plus the duplicated table/prose in `text` push
+        # verbose reports (many metrics, long recommendations) close to the previous
+        # 10000-token cap — observed a real truncated/unterminated-JSON response at
+        # that limit, which silently falls back to the coarse rule-based report.
+        max_tokens=16000,
         store=True
     ),
     output_type=QCReportSchema,

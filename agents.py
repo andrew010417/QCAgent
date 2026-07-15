@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pydantic import BaseModel
 import asyncio
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -341,6 +342,14 @@ def _openai_request(agent: Agent, input: list[Dict[str, Any]], category: str | N
         payload["top_p"] = agent.model_settings.top_p
     if agent.model_settings and agent.model_settings.max_tokens is not None:
         payload["max_tokens"] = agent.model_settings.max_tokens
+    if agent.output_type is not None:
+        # Schema-constrained agents (classify, report_agent) instruct the model to
+        # "return JSON and nothing else", but that's prompt-only compliance — observed
+        # live responses that ignored it entirely (pure prose, no JSON at all) or wrapped
+        # the JSON in a fenced block after a prose recap. OpenAI's JSON mode makes the
+        # API itself reject/retry non-JSON completions, so this is a hard guarantee
+        # rather than a hint the model can skip under load.
+        payload["response_format"] = {"type": "json_object"}
 
     request = urllib.request.Request(
         url="https://api.openai.com/v1/chat/completions",
@@ -377,6 +386,15 @@ def _openai_request(agent: Agent, input: list[Dict[str, Any]], category: str | N
 
 def _strip_code_fence(text: str) -> str:
     stripped = text.strip()
+    # report_agent/classify are instructed to "return JSON and nothing else", but live
+    # responses sometimes prepend a prose recap (e.g. the same Markdown table again)
+    # before the fenced JSON block, so json.loads(stripped) fails at char 0 even though
+    # a well-formed fenced JSON block is present further down. Search the whole text
+    # for a fenced block first, and only fall back to the whole-string-is-a-fence
+    # assumption (or the raw text) if none is found.
+    fence_match = re.search(r"```(?:json)?\s*\n(.*?)```", stripped, re.DOTALL)
+    if fence_match:
+        return fence_match.group(1).strip()
     if stripped.startswith("```"):
         lines = stripped.splitlines()
         if lines and lines[0].startswith("```"):
@@ -410,7 +428,8 @@ class Runner:
                 try:
                     parsed = json.loads(_strip_code_fence(openai_text))
                     final_output = agent.output_type(**parsed)
-                except Exception:
+                except Exception as exc:
+                    print(f"{agent.name} structured-output parse failed, using fallback: {exc}")
                     if agent.fallback_builder:
                         final_output = agent.fallback_builder(agent, user_text, input)
                         used_fallback = True

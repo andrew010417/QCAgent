@@ -144,12 +144,19 @@ def _draw_metric_panel(ax, metric: dict) -> None:
         0.5, -0.10, headline, transform=ax.transAxes,
         ha="center", va="top", fontsize=9, color=TEXT_PRIMARY,
     )
+    # standard_text can wrap up to 3 lines, so the source block below it must shift
+    # down by however many lines standard_text actually used — a fixed y position
+    # (calibrated for ~2 lines) gets overrun and visually collides whenever a
+    # threshold description is long enough to wrap to all 3.
+    source_y = -0.20
     if standard_text:
-        wrapped = "\n".join(textwrap.wrap(standard_text, width=30, max_lines=3, placeholder="…"))
+        wrapped_lines = textwrap.wrap(standard_text, width=30, max_lines=3, placeholder="…")
+        wrapped = "\n".join(wrapped_lines)
         ax.text(
             0.5, -0.20, wrapped, transform=ax.transAxes,
             ha="center", va="top", fontsize=7.5, color=TEXT_MUTED, linespacing=1.4,
         )
+        source_y = -0.20 - len(wrapped_lines) * 0.05 - 0.03
     if standard_source:
         if is_verified_source:
             source_label = f"출처: {standard_source}"
@@ -161,7 +168,7 @@ def _draw_metric_panel(ax, metric: dict) -> None:
             source_weight = "bold"
         wrapped_source = "\n".join(textwrap.wrap(source_label, width=34, max_lines=2, placeholder="…"))
         ax.text(
-            0.5, -0.34, wrapped_source, transform=ax.transAxes,
+            0.5, source_y, wrapped_source, transform=ax.transAxes,
             ha="center", va="top", fontsize=7, color=source_color, fontweight=source_weight, linespacing=1.3,
         )
 
@@ -216,7 +223,7 @@ def save_qc_chart(metrics: list[Any], output_path: str | Path) -> Path:
     # Generous bottom margin per subplot (caption block) and hspace between
     # rows so one panel's caption never runs into the row below it.
     fig.tight_layout(rect=(0, 0.06, 1, 0.96))
-    fig.subplots_adjust(hspace=1.15, wspace=0.35)
+    fig.subplots_adjust(hspace=1.35, wspace=0.35)
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
