@@ -1,11 +1,24 @@
 # QC Agent Workflow
 
-1. 입력: `QC workflow text`
+1. 입력: `QC workflow text` — 자유 텍스트로 omics 데이터를 설명
 2. 분류: 데이터 종류를 파악하고 적합한 QC 에이전트를 선택
 3. 툴 추천: 선택된 데이터 유형에 맞는 권장 QC 도구 목록 제공
-4. 실험 데이터 입력: 사용자가 QC 결과값/측정값을 입력
-5. 평가: QC 에이전트가 입력 데이터를 기반으로 요약
-6. 리포트: 최종 종합 리포트 생성
+4. 분석 목적 입력: 최종 분석 목적을 입력 (예: De novo assembly, 차등발현 분석 등)
+5. 실험 데이터 입력: 사용자가 QC 결과값/측정값을 입력
+6. 평가: QC 에이전트가 입력 데이터와 분석 목적을 기반으로 지표별 PASS/WARNING/FAIL 평가
+7. 리포트: 최종 종합 리포트 생성 — 텍스트 리포트와 함께 `data/charts/` 폴더에 지표별 PNG 차트가 자동 저장됨
+
+## 지원하는 데이터 카테고리
+
+HiFi, ONT, Illumina, Hi-C, RNA-seq, Methylation, Single-cell, ATAC-seq, WGS
+
+## 설치
+
+```bash
+pip install -r requirements.txt
+```
+
+`OPENAI_API_KEY` / `NCBI_API_KEY` 없이도 규칙 기반 fallback으로 전체 흐름이 동작하지만, 실제 LLM 평가와 문헌 참조가 필요하면 환경 변수 또는 `api_key.py`에 키를 설정하세요.
 
 ## 사용법
 
@@ -17,4 +30,4 @@ python bioQcAgent.py
 
 - `RNA-seq fastq, 50M reads, mapping 90%, Q30 92%`
 
-그리고 권장 툴을 확인한 후 실제 QC 결과를 입력합니다.
+분류 및 권장 툴을 확인한 후, 분석 목적과 실제 QC 결과를 순서대로 입력합니다.
