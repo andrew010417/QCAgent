@@ -7,6 +7,8 @@ look identical to the standalone PNG chart output.
 from __future__ import annotations
 
 import textwrap
+import urllib.error
+import urllib.request
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -60,6 +62,10 @@ TEXT_LINES_PER_PAGE = 55
 TEXT_WRAP_WIDTH = 70
 
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
+# assets/logo.png is gitignored (company asset, not for public repo
+# distribution — see .gitignore), so a fresh deploy checkout never has it on
+# disk. Same fallback source static/index.html's masthead <img> uses.
+LOGO_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTbR_xY50mdZR-8yzlZTNcC62hPqcCdd7fL9kbUBS9NMA&s=10"
 LOGO_X = 0.04
 LOGO_TOP = 0.965
 LOGO_WIDTH = 0.14
@@ -114,10 +120,26 @@ def _wrap_bullets(ax, items: list[str], *, x: float, y_start: float, width: int,
         shown += 1
 
 
+def _ensure_logo_cached() -> bool:
+    """Download the logo to LOGO_PATH if it isn't already on disk (a fresh
+    deploy checkout never has it — see LOGO_PATH's comment). Returns whether
+    a usable logo file exists after this call."""
+    if LOGO_PATH.exists():
+        return True
+    try:
+        with urllib.request.urlopen(LOGO_URL, timeout=10) as response:
+            data = response.read()
+    except (urllib.error.URLError, TimeoutError):
+        return False
+    LOGO_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LOGO_PATH.write_bytes(data)
+    return True
+
+
 def _add_logo(fig, run_date: str) -> None:
     """Draw the BioNexus logo top-left, with the report generation date under
     it — no presenter name/subtitle, per the report's letterhead spec."""
-    if not LOGO_PATH.exists():
+    if not _ensure_logo_cached():
         return
     img = mpimg.imread(LOGO_PATH)
     img_h, img_w = img.shape[0], img.shape[1]
