@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bioQCAgent · 오믹스 QC 평가</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3f5f6;
+    --bg-raised: #ffffff;
+    --bg-sunken: #eef2f3;
+    --ink: #17212b;
+    --ink-soft: #45525d;
+    --muted: #6b7883;
+    --hairline: #d8dfe3;
+    --hairline-strong: #c3ccd1;
+    --accent: #0e6b74;
+    --accent-ink: #084a51;
+    --accent-soft: #e0efef;
+    --accent-contrast: #ffffff;
+    --pass: #1f8f4d;
+    --pass-soft: #e4f3ea;
+    --warn: #b1791f;
+    --warn-soft: #f7ecd7;
+    --fail: #c0433c;
+    --fail-soft: #f8e4e2;
+    --mono-bg: #eef2f2;
+    --shadow-sm: 0 1px 2px rgba(23,33,43,.06);
+    --shadow: 0 1px 2px rgba(23,33,43,.06), 0 10px 30px rgba(23,33,43,.06);
+    --radius: 12px;
+    --mono: "Cascadia Code","Consolas",ui-monospace,"SFMono-Regular",monospace;
+    --sans: "Segoe UI","Segoe UI Variable",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10161a;
+      --bg-raised: #182126;
+      --bg-sunken: #131a1f;
+      --ink: #e6edf0;
+      --ink-soft: #b7c2ca;
+      --muted: #8b99a3;
+      --hairline: #2a353c;
+      --hairline-strong: #384750;
+      --accent: #4fb8bf;
+      --accent-ink: #a9e2e5;
+      --accent-soft: #172f32;
+      --accent-contrast: #06171a;
+      --pass: #56c07f;
+      --pass-soft: #16301f;
+      --warn: #dda75a;
+      --warn-soft: #322614;
+      --fail: #e2938c;
+      --fail-soft: #351f1d;
+      --mono-bg: #1b252b;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 34px rgba(0,0,0,.4);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  h1, h2, h3 { text-wrap: balance; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 22px 90px; }
+
+  header.masthead {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding-bottom: 20px; margin-bottom: 30px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .brand-logo {
+    height: 100px; width: auto; display: block;
+    background: #ffffff; border: 1px solid var(--hairline-strong);
+    border-radius: 9px; padding: 5px 9px;
+  }
+  .logo {
+    font-family: var(--mono); font-weight: 700; font-size: 40px;
+    letter-spacing: -0.02em; color: var(--ink);
+  }
+  .logo .bio { color: var(--accent); }
+  .masthead .tagline { color: var(--muted); font-size: 13.5px; font-weight: 600; }
+  .masthead .spacer { flex: 1; }
+  .status-key { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
+  .status-key span { display: inline-flex; align-items: center; gap: 5px; }
+  .status-key i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+  /* Stepper */
+  .steps { display: flex; gap: 10px; margin-bottom: 26px; flex-wrap: wrap; }
+  .step-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: var(--muted); font-family: var(--mono);
+    padding: 5px 11px; border: 1px solid var(--hairline); border-radius: 20px;
+    background: var(--bg-raised);
+  }
+  .step-chip b { color: var(--muted); font-weight: 700; }
+  .step-chip .num {
+    width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--bg-sunken); color: var(--muted); font-size: 11px;
+  }
+  .step-chip.active { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+  .step-chip.active .num { background: var(--accent); color: var(--accent-contrast); }
+  .step-chip.active b { color: var(--accent-ink); }
+  .step-chip.done .num { background: var(--pass); color: #fff; }
+
+  .card {
+    background: var(--bg-raised);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 22px 24px;
+    margin-bottom: 20px;
+  }
+  .card[hidden] { display: none; }
+  .card > h2 {
+    margin: 0 0 4px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .card > h2 .step-tag {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    background: var(--accent-soft); border-radius: 5px; padding: 2px 7px; font-weight: 600;
+  }
+  .card > .hint { margin: 0 0 16px; color: var(--muted); font-size: 13.5px; font-weight: 600; }
+
+  label.field-label {
+    display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft);
+    margin-bottom: 6px; letter-spacing: 0.01em;
+  }
+  textarea, input[type="text"] {
+    width: 100%; font-family: var(--mono); font-size: 13.5px; color: var(--ink);
+    background: var(--bg-sunken); border: 1px solid var(--hairline-strong);
+    border-radius: 9px; padding: 12px 13px; resize: vertical; line-height: 1.5;
+  }
+  textarea:focus, input[type="text"]:focus {
+    outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent);
+  }
+  textarea::placeholder, input::placeholder { color: var(--muted); opacity: .8; }
+  textarea#workflow-text { min-height: 84px; }
+  textarea#experiment-text { min-height: 150px; }
+  .field { margin-bottom: 15px; }
+
+  .btn {
+    appearance: none; border: 0; cursor: pointer; font-family: var(--sans);
+    font-size: 14px; font-weight: 700; border-radius: 9px; padding: 11px 20px;
+    background: var(--accent); color: var(--accent-contrast);
+    display: inline-flex; align-items: center; gap: 9px; transition: filter .15s ease;
+  }
+  .btn:hover { filter: brightness(1.06); }
+  .btn:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+  .btn:disabled { opacity: .55; cursor: progress; }
+  .btn.ghost { background: transparent; color: var(--accent-ink); border: 1px solid var(--hairline-strong); }
+  .btn-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+  .spinner {
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.45); border-top-color: #fff;
+    animation: spin .7s linear infinite; display: inline-block;
+  }
+  .btn.ghost .spinner { border: 2px solid var(--hairline-strong); border-top-color: var(--accent); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+
+  .inline-note { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .error-banner {
+    background: var(--fail-soft); border: 1px solid var(--fail); color: var(--fail);
+    padding: 10px 14px; border-radius: 9px; font-size: 13.5px; margin-top: 12px;
+  }
+  .error-banner[hidden] { display: none; }
+
+  /* Prepare result */
+  .recap { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 14px; }
+  .recap .box {
+    background: var(--bg-sunken); border: 1px solid var(--hairline); border-radius: 10px;
+    padding: 13px 15px;
+  }
+  .recap .box .k { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .recap .box .v { font-size: 16px; font-weight: 700; margin-top: 3px; color: var(--ink); }
+  .recap .box.category .v { color: var(--accent-ink); }
+  .tool-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 6px; }
+  .tool-chips .chip {
+    font-family: var(--mono); font-size: 12px; color: var(--ink-soft);
+    background: var(--bg-raised); border: 1px solid var(--hairline-strong);
+    border-radius: 6px; padding: 3px 8px;
+  }
+
+  /* Verdict */
+  .verdict-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  .verdict-pill {
+    font-size: 15px; font-weight: 700; padding: 7px 16px; border-radius: 22px;
+    border: 1.5px solid transparent;
+  }
+  .verdict-pill.good { color: var(--pass); background: var(--pass-soft); border-color: var(--pass); }
+  .verdict-pill.cond { color: var(--warn); background: var(--warn-soft); border-color: var(--warn); }
+  .verdict-pill.redo { color: var(--fail); background: var(--fail-soft); border-color: var(--fail); }
+  .verdict-pill.neutral { color: var(--muted); background: var(--bg-sunken); border-color: var(--hairline-strong); }
+  .summary-text { color: var(--ink-soft); font-size: 14.5px; font-weight: 600; margin: 4px 0 0; max-width: 74ch; }
+
+  /* Chart grid */
+  .chart-grid {
+    display: grid; grid-template-columns: repeat(auto-fill,minmax(210px,1fr));
+    gap: 16px; margin-top: 8px;
+  }
+  .panel {
+    border: 1px solid var(--hairline); border-radius: 10px; background: var(--bg-sunken);
+    padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .panel-title {
+    font-size: 13px; font-weight: 650; color: var(--ink); text-align: center;
+    min-height: 2.6em; display: flex; align-items: center; justify-content: center;
+  }
+  .panel svg { display: block; width: 100%; height: auto; }
+  .panel .cap { text-align: center; display: flex; flex-direction: column; gap: 2px; }
+  .cap-head { font-family: var(--mono); font-size: 12.5px; font-weight: 700; }
+  .cap-head .st { font-weight: 700; }
+  .cap-head .st.PASS { color: var(--pass); }
+  .cap-head .st.WARNING { color: var(--warn); }
+  .cap-head .st.FAIL { color: var(--fail); }
+  .cap-std { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+  .cap-src { font-size: 10.5px; line-height: 1.3; }
+  .cap-src.verified { color: var(--muted); }
+  .cap-src.estimate { color: var(--warn); font-weight: 600; }
+
+  /* Metrics table */
+  .table-scroll { overflow-x: auto; margin-top: 6px; }
+  table.metrics { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+  table.metrics th, table.metrics td {
+    text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--hairline); vertical-align: top;
+  }
+  table.metrics th {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+    font-weight: 700; background: var(--bg-sunken);
+  }
+  table.metrics tbody td { font-weight: 600; }
+  table.metrics td.val, table.metrics td.metric { font-family: var(--mono); }
+  table.metrics tr:last-child td { border-bottom: 0; }
+  .st-pill { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+  .st-pill.PASS { color: var(--pass); background: var(--pass-soft); }
+  .st-pill.WARNING { color: var(--warn); background: var(--warn-soft); }
+  .st-pill.FAIL { color: var(--fail); background: var(--fail-soft); }
+  .src-tag { display: block; margin-top: 4px; font-size: 10.5px; }
+  .src-tag.verified { color: var(--muted); }
+  .src-tag.estimate { color: var(--warn); }
+
+  .rec-list { margin: 8px 0 0; padding-left: 20px; color: var(--ink-soft); font-size: 14px; font-weight: 600; }
+  .rec-list li { margin-bottom: 5px; }
+
+  details.raw { margin-top: 8px; border: 1px solid var(--hairline); border-radius: 9px; background: var(--bg-sunken); }
+  details.raw > summary {
+    cursor: pointer; padding: 11px 15px; font-size: 13px; font-weight: 700; color: var(--ink-soft);
+    list-style: none; display: flex; align-items: center; gap: 8px;
+  }
+  details.raw > summary::before { content: "▸"; color: var(--muted); font-size: 11px; }
+  details.raw[open] > summary::before { content: "▾"; }
+  details.raw pre {
+    margin: 0; padding: 0 16px 16px; font-family: var(--mono); font-size: 12.5px;
+    white-space: pre-wrap; word-break: break-word; color: var(--ink-soft); line-height: 1.55;
+  }
+
+  .section-title {
+    font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    font-weight: 700; margin: 22px 0 8px;
+  }
+  hr.div { border: 0; border-top: 1px solid var(--hairline); margin: 20px 0; }
+  footer.foot { margin-top: 34px; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <img class="brand-logo" src="/assets/logo.png" alt="BioNexus" width="51" height="42">
+    <span class="logo"><span class="bio">bio</span>QCAgent</span>
+    <span class="tagline">오믹스 QC 워크플로우 · 분류 → 평가 → 리포트</span>
+    <span class="spacer"></span>
+    <span class="status-key">
+      <span><i style="background:var(--pass)"></i>PASS</span>
+      <span><i style="background:var(--warn)"></i>WARNING</span>
+      <span><i style="background:var(--fail)"></i>FAIL</span>
+    </span>
+  </header>
+
+  <nav class="steps" aria-label="진행 단계">
+    <span class="step-chip active" id="chip-1"><span class="num">1</span><b>데이터 분류 · 도구 추천</b></span>
+    <span class="step-chip" id="chip-2"><span class="num">2</span><b>QC 지표 평가</b></span>
+    <span class="step-chip" id="chip-3"><span class="num">3</span><b>리포트 · 차트</b></span>
+  </nav>
+
+  <!-- STAGE 1 -->
+  <section class="card" id="card-prepare">
+    <h2><span class="step-tag">STEP 1</span> QC 워크플로우 설명 입력</h2>
+    <p class="hint">분석할 오믹스 데이터를 자유 텍스트로 설명하세요. 데이터 타입을 분류하고 추천 QC 도구를 제시합니다.</p>
+    <div class="field">
+      <label class="field-label" for="workflow-text">워크플로우 설명</label>
+      <textarea id="workflow-text" placeholder="예: ONT nanopore 게놈 시퀀싱, mean read length 12kb, N50 18kb, mean Q score 14"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-prepare">데이터 분류하기</button>
+      <span class="inline-note">API 키가 없으면 규칙 기반 분류로 동작합니다.</span>
+    </div>
+    <div class="error-banner" id="err-prepare" hidden></div>
+  </section>
+
+  <!-- STAGE 1 RESULT + STAGE 2 -->
+  <section class="card" id="card-evaluate" hidden>
+    <h2><span class="step-tag">STEP 2</span> QC 지표 입력 및 평가</h2>
+    <p class="hint">분류 결과를 확인하고, 실제 실험 QC 수치를 입력해 골드 스탠다드 대비 평가를 실행하세요.</p>
+
+    <div class="recap" id="recap"></div>
+
+    <hr class="div">
+
+    <div class="field">
+      <label class="field-label" for="purpose-text">분석 목적</label>
+      <input type="text" id="purpose-text" placeholder="">
+    </div>
+    <div class="field">
+      <label class="field-label" for="experiment-text">실험 / 테스트 QC 데이터</label>
+      <textarea id="experiment-text" placeholder="예:&#10;mean read length: 12,400 bp&#10;N50: 18,200 bp&#10;mean Q score: 14&#10;total bases: 92 Gb"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-evaluate">QC 평가 실행</button>
+      <button class="btn ghost" id="btn-restart" type="button">처음부터 다시</button>
+    </div>
+    <div class="error-banner" id="err-evaluate" hidden></div>
+  </section>
+
+  <!-- STAGE 3 RESULT -->
+  <section class="card" id="card-result" hidden>
+    <h2><span class="step-tag">STEP 3</span> 평가 결과</h2>
+
+    <div class="verdict-row" id="verdict-row"></div>
+    <p class="summary-text" id="summary-text"></p>
+
+    <div class="section-title">지표별 시각화</div>
+    <div class="chart-grid" id="chart-grid"></div>
+
+    <div class="section-title">지표 상세</div>
+    <div class="table-scroll">
+      <table class="metrics" id="metrics-table"></table>
+    </div>
+
+    <div id="rec-block" hidden>
+      <div class="section-title">추가 권고사항</div>
+      <ul class="rec-list" id="rec-list"></ul>
+    </div>
+
+    <div class="section-title">원본 출력</div>
+    <details class="raw" id="raw-report">
+      <summary>리포트 전문 (Markdown)</summary>
+      <pre id="raw-report-text"></pre>
+    </details>
+    <details class="raw">
+      <summary>QC 에이전트 원본 출력</summary>
+      <pre id="raw-qc-text"></pre>
+    </details>
+
+    <div class="btn-row" style="margin-top:18px">
+      <a class="btn" id="btn-pdf" href="#" target="_blank" rel="noopener" hidden>PDF 리포트 열기</a>
+      <button class="btn ghost" id="btn-new" type="button">새 평가 시작</button>
+    </div>
+  </section>
+
+  <footer class="foot">bioQCAgent · 로컬 웹 UI · workflow.py의 2단계 흐름을 그대로 사용</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- shared state carried client-side between the two stages -------------
+  const state = { inputText: "", category: "" };
+
+  const $ = (id) => document.getElementById(id);
+
+  const STATUS_COLORS = { PASS: "var(--pass)", WARNING: "var(--warn)", FAIL: "var(--fail)" };
+  const STATUS_HEX = { PASS: "#1f8f4d", WARNING: "#b1791f", FAIL: "#c0433c" };
+
+  function setChips(activeStep, doneUpTo) {
+    [1, 2, 3].forEach((n) => {
+      const chip = $("chip-" + n);
+      chip.classList.toggle("active", n === activeStep);
+      chip.classList.toggle("done", n <= doneUpTo);
+    });
+  }
+
+  function showError(el, message) {
+    el.textContent = message;
+    el.hidden = false;
+  }
+  function clearError(el) { el.hidden = true; el.textContent = ""; }
+
+  function busy(btn, on, label) {
+    btn.disabled = on;
+    if (on) {
+      btn.dataset.label = btn.textContent;
+      btn.innerHTML = '<span class="spinner"></span>' + (label || btn.dataset.label);
+    } else if (btn.dataset.label) {
+      btn.textContent = btn.dataset.label;
+    }
+  }
+
+  async function postJSON(url, payload) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* non-JSON */ }
+    if (!res.ok) throw new Error(data.error || ("요청 실패 (HTTP " + res.status + ")"));
+    return data;
+  }
+
+  // ---- numeric extraction, mirrors visualize.py:_extract_numeric ----------
+  function extractNumeric(value) {
+    if (!value) return null;
+    const m = String(value).match(/-?\d[\d,]*\.?\d*/);
+    if (!m) return null;
+    const n = parseFloat(m[0].replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // ---- SVG bar panel (browser-side re-draw of the matplotlib chart) --------
+  function buildPanelSVG(metric) {
+    const W = 120, H = 150;
+    const padTop = 14, baseY = H - 16, plotH = baseY - padTop;
+    const status = (metric.status || "").toUpperCase();
+    const color = STATUS_HEX[status] || "#8b99a3";
+    const userVal = extractNumeric(metric.user_value);
+    const smin = metric.standard_min, smax = metric.standard_max;
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("role", "img");
+
+    if (userVal === null) {
+      const t = document.createElementNS(svgNS, "text");
+      t.setAttribute("x", W / 2); t.setAttribute("y", H / 2);
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("fill", "var(--muted)");
+      t.setAttribute("font-size", "10");
+      t.textContent = "수치 변환 불가";
+      svg.appendChild(t);
+      return svg;
+    }
+
+    const hasBand = smin !== null && smin !== undefined && smax !== null && smax !== undefined;
+    const hasLine = (smin !== null && smin !== undefined) ^ (smax !== null && smax !== undefined);
+    const scaleVals = [userVal, 0];
+    if (hasBand) scaleVals.push(smin, smax);
+    else if (hasLine) scaleVals.push(smin !== null && smin !== undefined ? smin : smax);
+    const top = Math.max(...scaleVals) > 0 ? Math.max(...scaleVals) * 1.25 : 1;
+    const y = (v) => baseY - (v / top) * plotH;
+
+    // gridlines
+    for (let i = 1; i <= 3; i++) {
+      const gy = padTop + (plotH / 4) * i;
+      const g = document.createElementNS(svgNS, "line");
+      g.setAttribute("x1", 10); g.setAttribute("x2", W - 8);
+      g.setAttribute("y1", gy); g.setAttribute("y2", gy);
+      g.setAttribute("stroke", "var(--hairline)"); g.setAttribute("stroke-width", "1");
+      svg.appendChild(g);
+    }
+
+    // gold-standard band / threshold line
+    function dashed(yy) {
+      const l = document.createElementNS(svgNS, "line");
+      l.setAttribute("x1", 10); l.setAttribute("x2", W - 8);
+      l.setAttribute("y1", yy); l.setAttribute("y2", yy);
+      l.setAttribute("stroke", "var(--ink-soft)"); l.setAttribute("stroke-width", "1");
+      l.setAttribute("stroke-dasharray", "4 3");
+      svg.appendChild(l);
+    }
+    if (hasBand) {
+      const rect = document.createElementNS(svgNS, "rect");
+      const yTop = y(Math.max(smin, smax)), yBot = y(Math.min(smin, smax));
+      rect.setAttribute("x", 10); rect.setAttribute("width", W - 18);
+      rect.setAttribute("y", yTop); rect.setAttribute("height", Math.max(0, yBot - yTop));
+      rect.setAttribute("fill", "var(--hairline-strong)"); rect.setAttribute("opacity", "0.35");
+      svg.appendChild(rect);
+      dashed(y(smin)); dashed(y(smax));
+    } else if (hasLine) {
+      dashed(y(smin !== null && smin !== undefined ? smin : smax));
+    }
+
+    // baseline
+    const base = document.createElementNS(svgNS, "line");
+    base.setAttribute("x1", 10); base.setAttribute("x2", W - 8);
+    base.setAttribute("y1", baseY); base.setAttribute("y2", baseY);
+    base.setAttribute("stroke", "var(--hairline-strong)"); base.setAttribute("stroke-width", "1");
+    svg.appendChild(base);
+
+    // bar
+    const barW = 34, barX = (W - barW) / 2, barY = y(userVal);
+    const bar = document.createElementNS(svgNS, "rect");
+    bar.setAttribute("x", barX); bar.setAttribute("width", barW);
+    bar.setAttribute("y", barY); bar.setAttribute("height", Math.max(0, baseY - barY));
+    bar.setAttribute("rx", "2"); bar.setAttribute("fill", color);
+    svg.appendChild(bar);
+
+    // value label at the tip
+    const vt = document.createElementNS(svgNS, "text");
+    vt.setAttribute("x", W / 2); vt.setAttribute("y", barY - 4);
+    vt.setAttribute("text-anchor", "middle"); vt.setAttribute("fill", "var(--ink)");
+    vt.setAttribute("font-size", "11"); vt.setAttribute("font-weight", "700");
+    vt.textContent = formatNum(userVal);
+    svg.appendChild(vt);
+
+    return svg;
+  }
+
+  function formatNum(n) {
+    if (Math.abs(n) >= 1000) return n.toLocaleString("en-US");
+    return String(+n.toFixed(4)).replace(/\.?0+$/, "") || "0";
+  }
+
+  function renderChart(metrics) {
+    const grid = $("chart-grid");
+    grid.innerHTML = "";
+    metrics.forEach((m) => {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+
+      const title = document.createElement("div");
+      title.className = "panel-title";
+      title.textContent = m.metric || "";
+      panel.appendChild(title);
+
+      panel.appendChild(buildPanelSVG(m));
+
+      const cap = document.createElement("div");
+      cap.className = "cap";
+      const status = (m.status || "").toUpperCase();
+      const head = document.createElement("div");
+      head.className = "cap-head";
+      head.innerHTML = `${escapeHTML(m.user_value || "-")} · <span class="st ${status}">${status || "-"}</span>`;
+      cap.appendChild(head);
+
+      if (m.standard_text) {
+        const std = document.createElement("div");
+        std.className = "cap-std";
+        std.textContent = m.standard_text;
+        cap.appendChild(std);
+      }
+      if (m.standard_source) {
+        const src = document.createElement("div");
+        const verified = !!m.is_verified_source;
+        src.className = "cap-src " + (verified ? "verified" : "estimate");
+        src.textContent = (verified ? "출처: " : "(추정치) ") + m.standard_source;
+        cap.appendChild(src);
+      }
+      panel.appendChild(cap);
+      grid.appendChild(panel);
+    });
+  }
+
+  function renderMetricsTable(metrics) {
+    const table = $("metrics-table");
+    table.innerHTML = "";
+    const head = table.createTHead().insertRow();
+    ["지표", "사용자 값", "Gold Standard 기준", "상태", "권고사항"].forEach((h) => {
+      const th = document.createElement("th"); th.textContent = h; head.appendChild(th);
+    });
+    const body = table.createTBody();
+    metrics.forEach((m) => {
+      const tr = body.insertRow();
+      const status = (m.status || "").toUpperCase();
+      const c0 = tr.insertCell(); c0.className = "metric"; c0.textContent = m.metric || "";
+      const c1 = tr.insertCell(); c1.className = "val"; c1.textContent = m.user_value || "-";
+
+      const c2 = tr.insertCell();
+      c2.textContent = m.standard_text || "-";
+      if (m.standard_source) {
+        const tag = document.createElement("span");
+        const verified = !!m.is_verified_source;
+        tag.className = "src-tag " + (verified ? "verified" : "estimate");
+        tag.textContent = (verified ? "출처: " : "(추정치) ") + m.standard_source;
+        c2.appendChild(tag);
+      }
+
+      const c3 = tr.insertCell();
+      const pill = document.createElement("span");
+      pill.className = "st-pill " + status;
+      pill.textContent = status || "-";
+      c3.appendChild(pill);
+
+      const c4 = tr.insertCell(); c4.textContent = m.recommendation || "-";
+    });
+  }
+
+  function verdictClass(verdict) {
+    if (!verdict) return "neutral";
+    if (verdict.includes("진행 가능")) return "good";
+    if (verdict.includes("조건부")) return "cond";
+    if (verdict.includes("재처리")) return "redo";
+    return "neutral";
+  }
+
+  function escapeHTML(s) {
+    return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+
+  // ---- STAGE 1: prepare ----------------------------------------------------
+  async function runPrepare() {
+    const btn = $("btn-prepare");
+    const text = $("workflow-text").value.trim();
+    clearError($("err-prepare"));
+    if (!text) { showError($("err-prepare"), "워크플로우 설명을 입력하세요."); return; }
+
+    busy(btn, true, "분류 중…");
+    try {
+      const data = await postJSON("/api/prepare", { input_as_text: text });
+      state.inputText = text;
+      state.category = data.category;
+
+      $("recap").innerHTML = `
+        <div class="box category"><div class="k">데이터 타입</div><div class="v">${escapeHTML(data.category)}</div></div>
+        <div class="box"><div class="k">선택된 QC 에이전트</div><div class="v" style="font-size:14px">${escapeHTML(data.qc_agent_name)}</div></div>
+        <div class="box"><div class="k">추천 QC 도구</div>
+          <div class="tool-chips">${(data.recommended_tools || []).map((t) => `<span class="chip">${escapeHTML(t)}</span>`).join("")}</div>
+        </div>`;
+
+      const purpose = $("purpose-text");
+      purpose.placeholder = "예: " + (data.purpose_example || "de novo assembly");
+
+      $("card-evaluate").hidden = false;
+      setChips(2, 1);
+      $("card-evaluate").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("experiment-text").focus();
+    } catch (e) {
+      showError($("err-prepare"), e.message);
+    } finally {
+      busy(btn, false);
+    }
+  }
+
+  // ---- STAGE 2: evaluate ---------------------------------------------------
+  async function runEvaluate() {
+    const btn = $("btn-evaluate");
+    const experiment = $("experiment-text").value.trim();
+    clearError($("err-evaluate"));
+    if (!experiment) { showError($("err-evaluate"), "실험 QC 데이터를 입력하세요."); return; }
+
+    busy(btn, true, "평가 중… (수십 초 소요될 수 있습니다)");
+    try {
+      const data = await postJSON("/api/evaluate", {
+        input_as_text: state.inputText,
+        category: state.category,
+        analysis_purpose: $("purpose-text").value.trim(),
+        experiment_text: experiment,
+      });
+      renderResult(data);
+      setChips(3, 3);
+      $("card-result").hidden = false;
+      $("card-result").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) {
+      showError($("err-evaluate"), e.message);
+    } finally {
+      busy(btn, false);
+    }
+  }
+
+  function renderResult(data) {
+    const report = data.report;
+
+    // verdict + summary
+    const vrow = $("verdict-row");
+    vrow.innerHTML = "";
+    const verdict = report && report.verdict ? report.verdict : "-";
+    const pill = document.createElement("span");
+    pill.className = "verdict-pill " + verdictClass(report ? report.verdict : "");
+    pill.textContent = verdict;
+    vrow.appendChild(pill);
+    if (report && report.category) {
+      const cat = document.createElement("span");
+      cat.className = "step-chip"; cat.style.margin = "0";
+      cat.innerHTML = `<b>${escapeHTML(report.category)}</b>`;
+      vrow.appendChild(cat);
+    }
+    $("summary-text").textContent = report && report.summary ? report.summary : "";
+
+    const metrics = (report && report.metrics) || [];
+    renderChart(metrics);
+    renderMetricsTable(metrics);
+
+    // recommendations
+    const recBlock = $("rec-block"), recList = $("rec-list");
+    recList.innerHTML = "";
+    const recs = (report && report.recommendations) || [];
+    if (recs.length) {
+      recs.forEach((r) => { const li = document.createElement("li"); li.textContent = r; recList.appendChild(li); });
+      recBlock.hidden = false;
+    } else {
+      recBlock.hidden = true;
+    }
+
+    // raw outputs
+    const reportText = report && report.text ? report.text : "";
+    $("raw-report-text").textContent = reportText;
+    $("raw-report").hidden = !reportText;
+    $("raw-qc-text").textContent = data.qc_output || "";
+
+    // pdf link
+    const pdf = $("btn-pdf");
+    if (data.pdf_url) { pdf.href = data.pdf_url; pdf.hidden = false; }
+    else { pdf.hidden = true; }
+  }
+
+  function restart() {
+    state.inputText = ""; state.category = "";
+    $("card-evaluate").hidden = true;
+    $("card-result").hidden = true;
+    $("experiment-text").value = "";
+    $("purpose-text").value = "";
+    clearError($("err-evaluate"));
+    setChips(1, 0);
+    $("card-prepare").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("workflow-text").focus();
+  }
+
+  function newEvaluation() {
+    $("card-result").hidden = true;
+    $("experiment-text").value = "";
+    setChips(2, 1);
+    $("card-evaluate").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("experiment-text").focus();
+  }
+
+  // ---- wire up -------------------------------------------------------------
+  $("btn-prepare").addEventListener("click", runPrepare);
+  $("btn-evaluate").addEventListener("click", runEvaluate);
+  $("btn-restart").addEventListener("click", restart);
+  $("btn-new").addEventListener("click", newEvaluation);
+  $("workflow-text").addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") runPrepare();
+  });
+  $("experiment-text").addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") runEvaluate();
+  });
+})();
+</script>
+</body>
+</html>
