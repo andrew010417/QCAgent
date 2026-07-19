@@ -49,6 +49,18 @@ MIN_HSPACE = 0.9
 # into the next row.
 HSPACE_SAFETY_MARGIN = 1.2
 
+# OS-installed fonts are not guaranteed to exist on the host running this
+# code (e.g. a Linux deployment container has no Korean font by default), so
+# a name-only lookup against fm.fontManager silently falls back to a non-CJK
+# font and bakes tofu/garbled glyphs into the rendered output. Bundling the
+# font file and registering it directly makes rendering independent of the
+# host's installed fonts.
+_FONTS_DIR = Path(__file__).parent / "assets" / "fonts"
+_KOREAN_FONT_REGULAR = _FONTS_DIR / "NotoSansKR-Regular.ttf"
+_KOREAN_FONT_BOLD = _FONTS_DIR / "NotoSansKR-Bold.ttf"
+
+# OS-installed fallback candidates, used only if the bundled font files above
+# are ever missing.
 _KOREAN_FONT_CANDIDATES = [
     "Malgun Gothic",   # Windows default Korean sans
     "AppleGothic",     # macOS fallback
@@ -57,15 +69,27 @@ _KOREAN_FONT_CANDIDATES = [
     "Noto Sans KR",
 ]
 
+_korean_font_registered = False
+
 
 def _configure_korean_font() -> None:
-    available = {f.name for f in fm.fontManager.ttflist}
-    for name in _KOREAN_FONT_CANDIDATES:
-        if name in available:
-            plt.rcParams["font.family"] = name
-            break
+    global _korean_font_registered
+
+    if _KOREAN_FONT_REGULAR.exists() and _KOREAN_FONT_BOLD.exists():
+        if not _korean_font_registered:
+            fm.fontManager.addfont(str(_KOREAN_FONT_REGULAR))
+            fm.fontManager.addfont(str(_KOREAN_FONT_BOLD))
+            _korean_font_registered = True
+        family = fm.FontProperties(fname=str(_KOREAN_FONT_REGULAR)).get_name()
+        plt.rcParams["font.family"] = family
     else:
-        plt.rcParams["font.family"] = plt.rcParams.get("font.family", "sans-serif")
+        available = {f.name for f in fm.fontManager.ttflist}
+        for name in _KOREAN_FONT_CANDIDATES:
+            if name in available:
+                plt.rcParams["font.family"] = name
+                break
+        else:
+            plt.rcParams["font.family"] = plt.rcParams.get("font.family", "sans-serif")
     plt.rcParams["axes.unicode_minus"] = False
 
 
