@@ -7,20 +7,28 @@ look identical to the standalone PNG chart output.
 from __future__ import annotations
 
 import textwrap
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import matplotlib
 
 matplotlib.use("Agg")
-# Type 3 (the matplotlib PDF default) can mis-embed CJK glyphs in some
-# viewers; TrueType embedding renders Korean text reliably.
-matplotlib.rcParams["pdf.fonttype"] = 42
 
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Patch, Rectangle
+from PIL import Image
+
+# Vector PDF text embedding was tried first (Type 42/TrueType CID fonts, via
+# matplotlib's pdf.fonttype=42), which renders correctly in matplotlib's own
+# renderer and in MuPDF, but Chrome/Edge's built-in PDF viewer (opened via the
+# web UI's "PDF 리포트 열기" -> target="_blank") shows Hangul glyphs as "?" or
+# tofu boxes for this embedded CID font structure. Rasterizing each page to a
+# PNG and assembling those into the PDF (see save_qc_report_pdf) sidesteps
+# font-embedding compatibility entirely — every viewer just displays pixels —
+# at the cost of non-selectable text, which is acceptable for a QC report.
+PAGE_RASTER_DPI = 150
 
 from visualize import (
     STATUS_COLORS,
@@ -406,11 +414,20 @@ def save_qc_report_pdf(
 
     figs.extend(_build_text_pages(full_text, "종합 판정 (report_agent 원문)"))
 
-    with PdfPages(output_path) as pdf:
-        total_pages = len(figs)
-        for page_num, fig in enumerate(figs, start=1):
-            _add_page_number(fig, page_num, total_pages)
-            pdf.savefig(fig, facecolor=fig.get_facecolor())
-            plt.close(fig)
+    total_pages = len(figs)
+    page_images: list[Image.Image] = []
+    for page_num, fig in enumerate(figs, start=1):
+        _add_page_number(fig, page_num, total_pages)
+        buf = BytesIO()
+        fig.savefig(buf, format="png", dpi=PAGE_RASTER_DPI, facecolor=fig.get_facecolor())
+        plt.close(fig)
+        buf.seek(0)
+        page_images.append(Image.open(buf).convert("RGB"))
+
+    first_page, remaining_pages = page_images[0], page_images[1:]
+    first_page.save(
+        output_path, format="PDF", save_all=True, append_images=remaining_pages,
+        resolution=PAGE_RASTER_DPI,
+    )
 
     return output_path
