@@ -13,13 +13,18 @@ Routes:
   POST /api/evaluate          -> stage 2: QC eval + report + PDF
   GET  /api/report/{id}/pdf   -> download the generated PDF for a run
 
-Run:  python web_server.py   (serves on http://127.0.0.1:8000)
+Run:  python web_server.py   (serves on http://127.0.0.1:8000 by default)
+
+Deployment (e.g. Railway): the platform assigns the listen port via the PORT
+env var and only routes to 0.0.0.0, not 127.0.0.1 — set HOST=0.0.0.0 (or rely
+on the PORT env var being present, which flips the default automatically).
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import mimetypes
+import os
 import re
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -258,7 +263,17 @@ class Handler(BaseHTTPRequestHandler):
         print(f"[web] {self.address_string()} {fmt % args}")
 
 
-def main(host: str = "127.0.0.1", port: int = 8000) -> None:
+def main(host: str | None = None, port: int | None = None) -> None:
+    # PORT is how Railway (and most PaaS platforms) tell the app which port
+    # to bind; its presence also means we're in a hosted container, where
+    # 127.0.0.1 wouldn't be reachable from outside — default the bind host
+    # to 0.0.0.0 in that case. HOST/PORT env vars always win if set.
+    env_port = os.environ.get("PORT")
+    if host is None:
+        host = os.environ.get("HOST") or ("0.0.0.0" if env_port else "127.0.0.1")
+    if port is None:
+        port = int(env_port) if env_port else 8000
+
     init_db()
     server = ThreadingHTTPServer((host, port), Handler)
     print(f"bioQCAgent web UI running at http://{host}:{port}")
