@@ -1,7 +1,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from agents import (
     Agent,
     GenericOutput,
@@ -31,6 +31,30 @@ class QCMetricResult(BaseModel):
     is_verified_source: bool = False  # True only if standard_source is a real citation drawn from the injected PubMed refs
     status: Literal["PASS", "WARNING", "FAIL"]
     recommendation: str = ""
+
+    @field_validator("user_value", mode="before")
+    @classmethod
+    def _coerce_user_value_to_str(cls, v):
+        # Despite the str type, the model reliably emits bare JSON numbers for
+        # numeric-looking readings (e.g. 15733.9) instead of quoting them —
+        # observed in production logs on every retry for the same input, so this
+        # isn't sampling noise a retry can dodge. Accept either instead of
+        # discarding the whole structured report over a formatting quirk.
+        if isinstance(v, (int, float)):
+            return str(v)
+        return v
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _coerce_status(cls, v):
+        # The instructions explicitly forbid hedge values like "판단 보류" or "-"
+        # here, but the model emits them anyway for genuinely uncertain metrics —
+        # also observed repeating identically across retries. Normalize instead
+        # of failing, matching the instructions' own guidance to default
+        # uncertain cases to WARNING.
+        if v not in ("PASS", "WARNING", "FAIL"):
+            return "WARNING"
+        return v
 
 
 class QCReportSchema(BaseModel):
