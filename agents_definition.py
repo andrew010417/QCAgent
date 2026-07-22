@@ -318,7 +318,10 @@ Return a single JSON object, and nothing else, matching this shape:
 ```""",
     model="gpt-4o-mini",
     model_settings=ModelSettings(
-        temperature=1,
+        # Lower than the default 1.0 — this agent must hit a strict JSON schema
+        # (literal status enum, nested metrics list) and a high temperature was
+        # observed to occasionally break that format, tripping the fallback path.
+        temperature=0.3,
         top_p=1,
         # `metrics[].standard_source` plus the duplicated table/prose in `text` push
         # verbose reports (many metrics, long recommendations) close to the previous

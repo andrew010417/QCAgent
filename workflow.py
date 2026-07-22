@@ -106,8 +106,13 @@ async def evaluate_workflow(workflow_input: WorkflowInput, experiment_text: str,
                     "category": category,
                 }),
             )
-            if report_agent_result_temp.used_fallback:
-                print("리포트 생성 재시도 중...")
+            # The model occasionally returns JSON that doesn't match QCReportSchema
+            # (bad status enum, truncated output), which Runner.run silently downgrades
+            # to the coarse rule-based fallback. Retry a couple more times before
+            # accepting that fallback, since each attempt is an independent roll.
+            retries_left = 2
+            while report_agent_result_temp.used_fallback and retries_left > 0:
+                print(f"리포트 생성 재시도 중... (남은 재시도 {retries_left}회)")
                 report_agent_result_temp = await Runner.run(
                     report_agent,
                     input=conversation_history,
@@ -117,6 +122,7 @@ async def evaluate_workflow(workflow_input: WorkflowInput, experiment_text: str,
                         "category": category,
                     }),
                 )
+                retries_left -= 1
             conversation_history.extend([item.to_input_item() for item in report_agent_result_temp.new_items])
             final_output = report_agent_result_temp.final_output
             is_structured = isinstance(final_output, QCReportSchema)
