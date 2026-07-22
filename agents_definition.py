@@ -342,10 +342,12 @@ Return a single JSON object, and nothing else, matching this shape:
 ```""",
     model="gpt-4o-mini",
     model_settings=ModelSettings(
-        # Lower than the default 1.0 — this agent must hit a strict JSON schema
-        # (literal status enum, nested metrics list) and a high temperature was
-        # observed to occasionally break that format, tripping the fallback path.
-        temperature=0.3,
+        # Schema conformance is handled by the QCMetricResult validators (coercing
+        # numeric user_value and hedge status strings) rather than by suppressing
+        # temperature, which only cost report richness/citation judgment without
+        # actually fixing the systematic violations. Back to the same 1.0 the
+        # other agents use.
+        temperature=1,
         top_p=1,
         # `metrics[].standard_source` plus the duplicated table/prose in `text` push
         # verbose reports (many metrics, long recommendations) close to the previous
